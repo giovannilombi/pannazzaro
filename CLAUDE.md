@@ -30,11 +30,11 @@ stesso stack, stesso sistema di account e squadre.
 
 | Percorso | Cosa contiene |
 | --- | --- |
-| `index.html`, `css/style.css` | Pagina e grafica (tufo e maioliche). Token in `:root` |
+| `index.html`, `css/style.css` | Pagina e grafica: chiostro di maioliche la sera (fondo cobalto, piastrelle smaltate, tappeti con frange). Token in `:root`. ≤900px: tabellone sopra, pannello sotto |
 | `js/types.js` | **Interfacce dello stato** (JSDoc): `GameState`, `Board`, `Rug`, `Peppo`, `PlayerState`, `TurnState`, `Toll`, `Action`… |
-| `js/rules.js` | Costanti (7×7, 30 monete, dado 1-2-2-3-3-4, tappeti per n. giocatori, colori, opzioni) e regole pure: `createGame`, `turnDir`, `rand`, `rollDie` |
-| `js/board.js` | Componente tabellone: `renderBoard(el, state)`, `placePeppo(el, peppo)` |
-| `js/app.js` | Avvio (per ora partita locale di prova; `#demo` mette dei tappeti finti) |
+| `js/rules.js` | **Motore completo, funzioni pure**: `createGame`, `applyAction(state, by, action)` → nuovo stato (o `RuleError`), `stepFrom`/`walk` (bordi), `zoneAt`/`tollFor`, `placeError`/`legalPlacements`, `finalScores`, `publicView` (per l'online) |
+| `js/board.js` | Componente tabellone `createBoard(el)`: render, `movePeppo` animato, archi (`arcId`), segni di raggiungibilità, tappeto fantasma, frecce, evidenziazioni |
+| `js/app.js` | Partita "passa e gioca": nuova partita, fasi del turno, comandi (tocco, mouse, tastiera), dado, pedaggio, classifica, regole. Salvataggio in `pz:local:game` |
 | `js/account.js` | Profili, chiamate al server, squadre (da Twindoku, chiavi locali `pz:`) |
 | `worker/` | Server: `src/index.js` (account e squadre), `schema.sql`, `wrangler.toml`, `.dev.vars.example` |
 | `tools/test-rules.js` | Prove delle regole (`npm test`) |
@@ -44,10 +44,21 @@ stesso stack, stesso sistema di account e squadre.
 ## Comandi
 
 ```sh
-python3 -m http.server 8766          # prova in locale: http://127.0.0.1:8766/  (#demo per i tappeti finti)
+python3 -m http.server 8766          # prova in locale: http://127.0.0.1:8766/
 npm test                             # prove delle regole
 cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.vars con PEPPER)
 ```
+
+## Comandi di gioco (non cambiarli senza aggiornare la finestra "Come si gioca" in `js/app.js`)
+
+- **Direzione**: Sinistra / Dritto / Destra (default Dritto) o la freccia accanto a Peppo sul tabellone; tasti ← ↑ →.
+  Prima mossa: bussola N/E/S/O. La scelta si vede subito: Peppo si gira e compaiono i numeri 1–4 sulle caselle d'arrivo
+  (più grandi 2 e 3, che escono il doppio), con il pedaggio che costerebbero (−N) e l'arco che attraverserebbe.
+- **Lancia il dado** (Spazio) conferma la direzione e lancia in un colpo solo. Variante "gira a fine turno": c'è "Conferma la direzione".
+- **Pedaggio**: zona illuminata sul tabellone, pulsante Paga (Invio).
+- **Tappeto**: tocca una casella illuminata → tappeto fantasma lì (prima posizione: quella che si allontana da Peppo);
+  ritocca la stessa casella o Gira (R) per cambiarne il verso; ‹ › o ← → scorrono tutte le posizioni; Stendi il tappeto (Invio); Esc annulla.
+  Col mouse il passaggio sopra una casella mostra un'anteprima leggera.
 
 ## Storico decisioni
 
@@ -57,3 +68,6 @@ cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.v
 - **2026-11-12** — Regole fissate (dettagli in `docs/REGOLE.md`, ricerca su regolamenti ufficiali 2007/2025 e codice BGA):
   2–4 giocatori con tappeti ufficiali (12/15/24, in 2 due colori a testa); copertura in una mossa vietata su **tutti** i tappeti;
   direzione libera al primo turno; bordi con archi d'angolo NE e SW. Multiplayer **online subito**.
+- **2026-11-12** — Motore completo con prove (28 uscite dai bordi, pedaggi, piazzamento, 900 partite casuali da 2-4 giocatori).
+  Interfaccia "passa e gioca" completa. Grafica: chiostro di maioliche la sera (Alfa Slab One + Nunito, cobalto, giallo maiolica).
+  Il colore "golfo" è diventato **melanzana** per non confondersi con lo sfondo blu. Se non c'è posto per il tappeto, il tappeto si perde.

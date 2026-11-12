@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pannazzaro</title>
-<meta name="description" content="Gioco da tavolo di tappeti e monete per 2-4 giocatori: guida Peppo o' Pannazzaro e stendi i tuoi tappeti nel vicolo.">
+<meta name="description" content="Gioco da tavolo di tappeti e monete per 2-4 giocatori: guida Peppo o' Pannazzaro per il chiostro e stendi i tuoi tappeti.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Nunito:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Nunito:ital,wght@0,400;0,600;0,800;1,400&display=swap">
 <link rel="stylesheet" href="css/style.css">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#7a3b1e">
+<meta name="theme-color" content="#1b3566">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,19 +20,47 @@
 <body>
 <div class="app">
   <header class="top">
-    <a class="brand" href="#" aria-label="Pannazzaro"><span class="logo" aria-hidden="true">🧶</span><span>Pannazzaro</span></a>
+    <a class="brand" href="#" aria-label="Pannazzaro">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><rect x="5" y="9" width="17" height="30" rx="2" fill="#c8322b"/><rect x="26" y="9" width="17" height="14" rx="2" fill="#e8b923"/><rect x="26" y="25" width="17" height="14" rx="2" fill="#2f8a4a"/><path d="M5 12h17M5 36h17" stroke="#fbf7ee" stroke-width="2" stroke-dasharray="2 2"/></svg>
+      <span>Pannazzaro</span>
+    </a>
+    <nav class="topnav">
+      <button type="button" class="btn ghost" id="helpBtn">Come si gioca</button>
+      <button type="button" class="btn ghost" id="newBtn">Nuova partita</button>
+    </nav>
   </header>
+
   <main class="layout">
     <section class="stage" aria-label="Tabellone">
-      <div class="boardbox"><div id="board"></div></div>
-      <p id="status" class="status" aria-live="polite"></p>
+      <div id="board"></div>
     </section>
-    <aside class="side" aria-label="Giocatori">
-      <h2>Giocatori</h2>
-      <ul id="players" class="players"></ul>
+
+    <aside class="panel" aria-label="Turno e giocatori">
+      <section class="turn" id="turn" aria-live="polite">
+        <header class="turn-head">
+          <span class="turn-av" id="turnAv"></span>
+          <h2 id="turnName"></h2>
+        </header>
+        <ol class="steps" id="steps" aria-label="Fasi del turno">
+          <li data-step="orient">Gira</li><li data-step="roll">Dado</li><li data-step="pay">Pedaggio</li><li data-step="place">Tappeto</li>
+        </ol>
+        <div class="act" id="act"></div>
+        <p class="msg" id="msg" role="status"></p>
+      </section>
+
+      <section class="players-card" aria-label="Giocatori">
+        <ul id="players" class="players"></ul>
+      </section>
+
+      <details class="log-card" id="logCard">
+        <summary>Cronaca</summary>
+        <ol id="log" class="log"></ol>
+      </details>
     </aside>
   </main>
 </div>
+
+<div id="overlay" class="overlay" hidden><div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></div></div>
 <script type="module" src="js/app.js"></script>
 </body>
 </html>

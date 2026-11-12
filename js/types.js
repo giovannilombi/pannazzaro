@@ -46,7 +46,7 @@
  * @typedef {0 | 1 | 2 | 3} PlayerIndex */
 
 /** Colore dei tappeti (vedi COLORS in rules.js). I tappeti degli eliminati restano col loro colore ma sono neutri.
- * @typedef {'pomodoro' | 'golfo' | 'limone' | 'basilico'} PlayerColor */
+ * @typedef {'pomodoro' | 'melanzana' | 'limone' | 'basilico'} PlayerColor */
 
 /** @typedef {object} PlayerState
  * @property {number | null} accountId id del giocatore sul server (stesso sistema di Twindoku); null = ospite / gioco sullo stesso dispositivo
@@ -76,7 +76,7 @@
 /** @typedef {object} TurnState
  * @property {PlayerIndex} current chi gioca
  * @property {Phase} phase
- * @property {number} round        turni giocati dall'inizio (0, 1, 2...). Al round 0 la direzione è libera
+ * @property {number} round        turni giocati dall'inizio (0, 1, 2...). Alla prima mossa della partita la direzione è libera
  * @property {DieFace | null} roll ultimo lancio, null prima di 'roll'
  * @property {Cell[]} path         caselle attraversate da Peppo nell'ultimo movimento (per l'animazione)
  * @property {Toll | null} toll    null se Peppo è su una casella vuota o su un tappeto proprio */
@@ -124,6 +124,7 @@
 /** @typedef {OrientAction | RollAction | PayAction | PlaceAction} Action */
 
 /** Voce della cronaca: l'azione, chi l'ha fatta e l'esito (per il dado: la faccia uscita).
- * @typedef {{ by: PlayerIndex, round: number, action: Action, roll?: DieFace, toll?: Toll }} GameEvent */
+ * skipped = nessuna posizione valida per il tappeto, che è stato scartato.
+ * @typedef {{ by: PlayerIndex, round: number, action: Action | { type: 'place', cells: null }, roll?: DieFace, toll?: Toll, skipped?: boolean }} GameEvent */
 
 export {};

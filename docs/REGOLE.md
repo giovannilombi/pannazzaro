@@ -72,7 +72,7 @@ Da implementare come tabella da 28 voci (7 corsie × 4 lati) con una prova per o
   Coprirlo del tutto in due mosse è permesso.
 - Il divieto vale per **tutti** i tappeti, anche i propri e i neutri (testo 2025). Il testo 2007 lo limitava agli avversari:
   resta disponibile come opzione `coverOwn: true`.
-- Se nessuna posizione è valida (caso rarissimo): il turno passa senza tappeto. Non è previsto dalle regole: è la nostra scelta.
+- Se nessuna posizione è valida (caso rarissimo): il tappeto si perde e il turno passa. Non è previsto dalle regole: è la nostra scelta.
 - 2 giocatori: il colore del tappeto da posare esce a caso fra i due del giocatore.
 
 ## Fine partita

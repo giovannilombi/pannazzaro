@@ -1,5 +1,5 @@
 // Prove rapide delle regole pure:  npm test  (oppure node tools/test-rules.js)
-import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS } from '../js/rules.js';
+import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS, stepFrom, walk, zoneAt, tollFor, placeError, legalPlacements, applyAction, finalScores, publicView, RuleError } from '../js/rules.js';
 
 let fails = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) fails++; };
@@ -26,6 +26,104 @@ for (let i = 0; i < 60000; i++) { const r = rollDie(rng); rng = r.rng; count[r.f
 const exp = f => (DIE.filter(x => x === f).length / 6) * 60000;
 ok([1, 2, 3, 4].every(f => Math.abs(count[f] - exp(f)) < exp(f) * 0.05), `dado 1,2,2,3,3,4 ben distribuito ${JSON.stringify(count)}`);
 ok(rollDie(123).face === rollDie(123).face, 'dado deterministico con lo stesso seme');
+
+/* ---------------- bordi: tutte le 28 uscite ---------------- */
+const exp28 = [];
+for (let x = 0; x < 7; x++) exp28.push([{ x, y: 0 }, 'N', x === 6 ? [{ x: 6, y: 0 }, 'W'] : [{ x: x ^ 1, y: 0 }, 'S']]);
+for (let y = 0; y < 7; y++) exp28.push([{ x: 6, y }, 'E', y === 0 ? [{ x: 6, y: 0 }, 'S'] : [{ x: 6, y: [0, 2, 1, 4, 3, 6, 5][y] }, 'W']]);
+for (let x = 0; x < 7; x++) exp28.push([{ x, y: 6 }, 'S', x === 0 ? [{ x: 0, y: 6 }, 'E'] : [{ x: [0, 2, 1, 4, 3, 6, 5][x], y: 6 }, 'N']]);
+for (let y = 0; y < 7; y++) exp28.push([{ x: 0, y }, 'W', y === 6 ? [{ x: 0, y: 6 }, 'N'] : [{ x: 0, y: y ^ 1 }, 'E']]);
+const bad = exp28.filter(([pos, dir, [p2, d2]]) => { const r = stepFrom(pos, dir); return r.pos.x !== p2.x || r.pos.y !== p2.y || r.dir !== d2; });
+ok(bad.length === 0, `28 uscite dal tabellone come da tabella ${bad.length ? JSON.stringify(bad[0]) : ''}`);
+// ogni arco è percorribile nei due sensi: uscendo dal rientro in senso opposto si torna al punto di partenza
+const back = { N: 'S', S: 'N', E: 'W', W: 'E' };
+ok(exp28.filter(([, , [, d2]], i) => exp28[i][1] !== undefined).every(([pos, dir]) => {
+  const r = stepFrom(pos, dir); if (r.arc !== 'u') return true;
+  const b = stepFrom(r.pos, back[r.dir]); return b.pos.x === pos.x && b.pos.y === pos.y && b.dir === back[dir];
+}), 'gli archi a U sono reversibili');
+const w = walk({ pos: { x: 3, y: 1 }, dir: 'N' }, 4);
+ok(w.map(s => `${s.pos.x},${s.pos.y}`).join(' ') === '3,0 2,0 2,1 2,2' && w[3].dir === 'S', 'percorso che passa da un arco (l\'arco non conta come passo)');
+ok(walk({ pos: { x: 6, y: 1 }, dir: 'N' }, 3).map(s => `${s.pos.x},${s.pos.y},${s.dir}`).join(' ') === '6,0,N 6,0,W 5,0,W', 'arco d\'angolo: stessa casella, girato di 90°');
+
+/* ---------------- pedaggio ---------------- */
+const put = (st, owner, a, b, color = st.players[owner].colors[0]) => { const id = st.rugs.length + 1; st.rugs.push({ id, owner, color, cells: [a, b], round: 0 }); for (const c of [a, b]) st.board[c.y][c.x] = { rug: id, owner, color }; };
+const t1 = createGame({ players: [{}, {}, {}, {}], seed: 1 });
+put(t1, 1, { x: 3, y: 3 }, { x: 4, y: 3 }); put(t1, 1, { x: 4, y: 4 }, { x: 4, y: 5 }); put(t1, 1, { x: 5, y: 5 }, { x: 6, y: 6 /* diagonale finta */ });
+t1.board[6][6] = null; t1.board[5][5] = { rug: 3, owner: 1, color: t1.players[1].colors[0] }; // 5,5 tocca 4,5? no: è in diagonale con 4,4 e accanto a 4,5
+ok(zoneAt(t1.board, { x: 3, y: 3 }).length === 5, 'zona connessa ortogonale (5 caselle)');
+put(t1, 2, { x: 2, y: 3 }, { x: 2, y: 4 });
+ok(zoneAt(t1.board, { x: 3, y: 3 }).length === 5, 'altri colori non si sommano');
+const tl = tollFor(t1);
+ok(tl && tl.from === 0 && tl.to === 1 && tl.amount === 5 && tl.paid === 5, 'pedaggio = caselle della zona');
+t1.players[0].coins = 3;
+ok(tollFor(t1).paid === 3, 'paga solo quello che ha');
+t1.turn.current = 1; ok(tollFor(t1) === null, 'sul proprio tappeto non si paga');
+t1.turn.current = 0; t1.players[1].out = true; ok(tollFor(t1) === null, 'i tappeti di chi è uscito sono neutri');
+const t2p = createGame({ players: [{}, {}], seed: 3 });
+put(t2p, 1, { x: 3, y: 3 }, { x: 3, y: 4 }, t2p.players[1].colors[0]); put(t2p, 1, { x: 4, y: 3 }, { x: 5, y: 3 }, t2p.players[1].colors[1]);
+ok(tollFor(t2p).amount === 2, '2 giocatori: i due colori dello stesso giocatore sono zone separate');
+
+/* ---------------- piazzamento ---------------- */
+const g3 = createGame({ players: [{}, {}, {}, {}], seed: 5 });
+ok(legalPlacements(g3).length === 12, 'al centro, tabellone vuoto: 12 posizioni');
+g3.peppo.pos = { x: 0, y: 0 };
+ok(legalPlacements(g3).length === 4, 'nell\'angolo: 4 posizioni');
+g3.peppo.pos = { x: 3, y: 3 };
+ok(placeError(g3, [{ x: 3, y: 3 }, { x: 3, y: 2 }]) !== null, 'mai sotto Peppo');
+ok(placeError(g3, [{ x: 5, y: 3 }, { x: 6, y: 3 }]) !== null, 'deve toccare Peppo');
+ok(placeError(g3, [{ x: 4, y: 3 }, { x: 5, y: 4 }]) !== null, 'niente tappeti in diagonale');
+put(g3, 1, { x: 4, y: 3 }, { x: 5, y: 3 });
+ok(placeError(g3, [{ x: 4, y: 3 }, { x: 5, y: 3 }]) !== null, 'non si copre tutto un tappeto in una volta');
+ok(placeError(g3, [{ x: 4, y: 3 }, { x: 4, y: 2 }]) === null, 'si può coprirne metà');
+put(g3, 0, { x: 2, y: 3 }, { x: 1, y: 3 });
+ok(placeError(g3, [{ x: 2, y: 3 }, { x: 1, y: 3 }]) !== null, 'divieto anche sul proprio (scelta di default)');
+g3.options.coverOwn = true;
+ok(placeError(g3, [{ x: 2, y: 3 }, { x: 1, y: 3 }]) === null, 'con coverOwn il proprio si può coprire');
+
+/* ---------------- partita intera ---------------- */
+let threw2 = false;
+let s = createGame({ players: [{}, {}, {}, {}], seed: 11 });
+try { applyAction(s, 1, { type: 'orient', dir: 'E' }); } catch (e) { threw2 = e instanceof RuleError; }
+ok(threw2, 'fuori turno: errore');
+threw2 = false; try { applyAction(s, 0, { type: 'roll' }); } catch (e) { threw2 = e instanceof RuleError; }
+ok(threw2, 'fasi in ordine: prima la direzione');
+s = applyAction(s, 0, { type: 'orient', dir: 'E' });
+ok(s.peppo.dir === 'E' && s.turn.phase === 'roll', 'prima mossa: direzione libera');
+threw2 = false; try { applyAction(s, 0, { type: 'orient', dir: 'W' }); } catch (e) { threw2 = true; }
+ok(threw2, 'dopo, niente scelta libera');
+
+function playOut(seed, n, options = {}) {
+  let st = createGame({ players: Array.from({ length: n }, () => ({})), seed, options });
+  let r = seed, guard = 0;
+  const pick = k => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r % k; };
+  while (st.turn.phase !== 'over' && guard++ < 5000) {
+    const by = st.turn.current, ph = st.turn.phase;
+    if (ph === 'orient') st = applyAction(st, by, st.log.length === 0 ? { type: 'orient', dir: ['N', 'E', 'S', 'W'][pick(4)] } : { type: 'orient', turn: ['straight', 'left', 'right'][pick(3)] });
+    else if (ph === 'roll') st = applyAction(st, by, { type: 'roll' });
+    else if (ph === 'pay') st = applyAction(st, by, { type: 'pay' });
+    else { const L = legalPlacements(st); st = applyAction(st, by, { type: 'place', cells: L[pick(L.length)] }); }
+  }
+  return st;
+}
+let allOk = true, coinsOk = true, outSeen = 0;
+for (let seed = 1; seed <= 300; seed++) {
+  for (const n of [2, 3, 4]) {
+    const st = playOut(seed, n, seed % 5 === 0 ? { rotateAtEnd: true } : {});
+    if (st.turn.phase !== 'over' || !st.result) { allOk = false; console.log('non finita', seed, n); break; }
+    const coins = st.players.reduce((a, p) => a + p.coins, 0);
+    if (coins !== 30 * n) coinsOk = false;
+    outSeen += st.players.filter(p => p.out).length;
+    const live = st.players.filter(p => !p.out);
+    if (live.length > 1 && live.some(p => p.pile.length)) allOk = false;
+  }
+}
+ok(allOk, '900 partite casuali arrivano alla fine (2, 3 e 4 giocatori, anche con la variante)');
+ok(coinsOk, 'le monete totali non cambiano mai');
+ok(outSeen > 0, `capita che qualcuno esca dal gioco (${outSeen} volte)`);
+const fin = playOut(42, 4);
+ok(fin.result.every((r, i, a) => i === 0 || a[i - 1].total > r.total || (a[i - 1].total === r.total && a[i - 1].coins >= r.coins)), 'classifica ordinata per punti e monete');
+const pv = publicView(fin);
+ok(pv.rng === 0 && pv.players.every(p => p.pile.slice(1).every(c => c === null)), 'vista pubblica senza seme né ordine delle pile');
 
 if (fails) { console.log(`\n${fails} prove fallite`); process.exit(1); }
 console.log('\nTutto a posto.');
