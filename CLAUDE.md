@@ -12,7 +12,7 @@ Le **meccaniche** sono ispirate a un gioco da tavolo esistente; nome, personaggi
 Fa parte della famiglia di giochi di Giovanni (hub "ziogiogames", ancora da creare) insieme a **Twindoku** (`~/Dev/twindoku`):
 stesso stack, stesso sistema di account e squadre.
 
-- Repo: https://github.com/giovannilombi/pannazzaro (privato per ora)
+- Repo: https://github.com/giovannilombi/pannazzaro (pubblico dal 2026-11-12)
 - Sito statico puro (niente build, niente dipendenze), come Twindoku. Server: Cloudflare Worker `pannazzaro-api` + D1 `pannazzaro` (**non ancora creati**).
 
 ## Vincoli da rispettare sempre
