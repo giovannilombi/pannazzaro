@@ -42,7 +42,7 @@ stesso stack, stesso sistema di account e squadre.
 | `js/online.js` | Gioca online: le mie partite, creazione, sala d'attesa con codice e link `#partita-CODICE`, aggiornamenti ogni 2 s (`watch`) |
 | `worker/` | Server: `src/index.js` (account, squadre, partite `/api/game*`, importa `js/rules.js`), `schema.sql`, `wrangler.toml`, `.dev.vars.example` |
 | `tools/test-rules.js` | Prove delle regole (`npm test`) |
-| `tools/test-online.js` | Prova completa delle partite online contro un server (`node tools/test-online.js http://127.0.0.1:8788`). Sul server pubblicato lascia giocatori di prova: cancellarli dopo |
+| `tools/test-online.js` | Prova completa delle partite online contro un server (`node tools/test-online.js http://127.0.0.1:8788`, `--tempo` +40 s, `--lungo` +3 min per le partite a tempo). Sul server pubblicato lascia giocatori di prova: cancellarli dopo |
 | `docs/REGOLE.md` | Regole del gioco da implementare |
 | `docs/ROADMAP.md` | Passi successivi e decisioni aperte |
 
@@ -70,6 +70,8 @@ cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # d
 - **Online**: in alto «Online» (le mie partite, crea, entra con un codice) e il profilo. Quando non tocca a te il pannello
   dice cosa sta facendo l'altro e le sue mosse si vedono animate; quando tocca a te il titolo della pagina diventa «● Tocca a te».
   Sopra il pannello: codice della partita, pallino di connessione, «Le mie partite», «Abbandona».
+- **Tempo per turno** (online): scelto da chi crea la partita (30 s, 1 min, 1 min e ½, 2 min, 5 min, «senza fretta» = 1 giorno).
+  Conto alla rovescia nell'intestazione del turno, rosso negli ultimi 10 s. Allo scadere Peppo gioca da solo (`autoTurn`), al terzo turno saltato di fila si esce.
 
 ## Storico decisioni
 
@@ -87,3 +89,9 @@ cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # d
   versione (mossa su tabellone vecchio → 409). **Polling ogni 2 s** invece di WebSocket. Abbandono = esce come chi non può pagare
   (`resign` in `rules.js`). Punti di classifica provvisori: N, N−1… secondo il posto (vedi `docs/ROADMAP.md`).
   Avatar: animali (niente detective); parole del codice segreto a tema napoletano (es. LIMONE-GUFO-73).
+- **2026-11-12** — **Partite a tempo** e soluzione ai giocatori che spariscono: ogni partita online ha un tempo per turno
+  (default «senza fretta» = 1 giorno, così nessuno blocca gli altri per sempre). Allo scadere (+5 s di tolleranza) Peppo gioca
+  il turno da solo (`autoTurn` in `rules.js`: dritto, dado, pedaggio, tappeto in un posto valido a caso; eventi con `auto: true`);
+  al terzo turno saltato **di fila** il giocatore esce come con «Abbandona»: tappeti sul tabellone restano ma neutri, monete perse.
+  Nessun timer sul server: lo controlla chi guarda la partita (`tick()` nel worker, colonna `games.deadline` per il controllo veloce).
+  Orologio in `state.clock` { secs, deadline, strikes }.

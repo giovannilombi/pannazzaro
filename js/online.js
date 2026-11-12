@@ -7,6 +7,10 @@ const $ = s => /** @type {HTMLElement} */ (document.querySelector(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const inviteUrl = code => `${location.origin}${location.pathname}#partita-${code}`;
 const POLL = 2000, POLL_SLOW = 6000;
+// tempo per turno: le stesse scelte che accetta il server (worker TURN_SECS)
+export const TIMES = [[30, '30 s'], [60, '1 min'], [90, '1 min e ½'], [120, '2 min'], [300, '5 min'], [86400, 'Senza fretta']];
+export const timeName = secs => (secs >= 86400 ? 'senza fretta: un giorno per turno' : `${(TIMES.find(t => t[0] === secs) || [0, secs + ' s'])[1]} per turno`);
+const LAST_SECS = 'pz:secs';
 
 /**
  * @param {{ openModal: (html: string, cls?: string) => void, closeModal: () => void, toast: (html: string, ms?: number) => void,
@@ -60,6 +64,10 @@ export function initOnline(ctx) {
       <div class="online-grid">
         <section class="tile">
           <h3>Nuova partita</h3>
+          <fieldset class="secs"><legend>Tempo per turno</legend>
+            ${TIMES.map(([v, l]) => `<label><input type="radio" name="onSecs" value="${v}"${v === lastSecs() ? ' checked' : ''}><span>${l}</span></label>`).join('')}
+          </fieldset>
+          <p class="hint">Allo scadere Peppo gioca da solo il turno di chi non ha mosso; chi salta tre turni di fila esce dal gioco.</p>
           <label class="check"><input type="checkbox" id="onVar"> <span><b>Variante:</b> Peppo si gira a fine turno.</span></label>
           <button type="button" class="btn primary" data-on="new">Crea la partita</button>
         </section>
@@ -77,6 +85,7 @@ export function initOnline(ctx) {
       <div class="row end"><button type="button" class="btn ghost" data-close>Chiudi</button></div>`, 'wide online');
     loadList();
   }
+  function lastSecs() { try { const v = +localStorage.getItem(LAST_SECS); return TIMES.some(t => t[0] === v) ? v : 86400; } catch (e) { return 86400; } }
   async function loadList() {
     const box = $('#myGames');
     try {
@@ -87,7 +96,7 @@ export function initOnline(ctx) {
         return `<li class="${g.turn && g.turn.me ? 'mine' : ''}"><button type="button" class="gl" data-on="open" data-code="${g.code}">
           <span class="gl-code">${g.code}</span>
           <span class="gl-avs" aria-hidden="true">${g.seats.map(s => s.avatar).join('')}</span>
-          <span class="gl-txt"><span class="gl-names">${g.seats.map(s => (s.me ? 'tu' : esc(s.name))).join(', ')}</span><small>${state}</small></span>
+          <span class="gl-txt"><span class="gl-names">${g.seats.map(s => (s.me ? 'tu' : esc(s.name))).join(', ')}</span><small>${state}${g.secs < 86400 && g.status !== 'over' ? ` · ⏱ ${(TIMES.find(t => t[0] === g.secs) || [0, ''])[1]}` : ''}</small></span>
         </button>${g.status === 'over' ? `<button type="button" class="btn ghost sm" data-on="hide" data-code="${g.code}" title="Togli dalla lista" aria-label="Togli dalla lista">✕</button>` : ''}</li>`;
       }).join('')}</ul>` : '<p class="hint">Nessuna partita, per ora. Creane una o fatti mandare un codice.</p>';
     } catch (e) {
@@ -146,7 +155,7 @@ export function initOnline(ctx) {
             <span class="seat-rugs">${colorsFor(i).map(c => `<span class="mini-rug rug-${c}" style="--rug:${COLORS[c].hex};--rug-dark:${COLORS[c].dark};--rug-light:${COLORS[c].light}" title="${COLORS[c].name}"><i class="weave"></i></span>`).join('')}</span></li>`;
         }).join('')}
       </ol>
-      <p class="hint">${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
+      <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
       <div class="row end">
         <button type="button" class="btn ghost" data-on="leave" data-code="${g.code}">${g.host ? 'Chiudi la sala' : 'Esci dalla sala'}</button>
         <button type="button" class="btn ghost" data-on="home">Le mie partite</button>
@@ -164,7 +173,11 @@ export function initOnline(ctx) {
     const busy = async fn => { b.setAttribute('disabled', ''); try { await fn(); } catch (x) { toast(`<b>${esc(x.message)}</b>`, 5000); } finally { b.removeAttribute('disabled'); } };
     if (k === 'home') return home();
     if (k === 'open') return open(code);
-    if (k === 'new') return busy(async () => lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked })));
+    if (k === 'new') return busy(async () => {
+      const secs = +(/** @type {HTMLInputElement} */ (modal.querySelector('input[name="onSecs"]:checked'))?.value || 86400);
+      try { localStorage.setItem(LAST_SECS, String(secs)); } catch (x) { /* niente */ }
+      lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked, turnSecs: secs }));
+    });
     if (k === 'start') return busy(async () => { const r = await acc.gameStart(code); stop(); ctx.enter(r); });
     if (k === 'leave') {
       if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = 'Sicuro? Tocca ancora'; return; }

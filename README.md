@@ -18,7 +18,8 @@ npm test                       # prove delle regole (Node 18+)
 
 Il server (account, squadre, partite online) è un Cloudflare Worker con database D1: vedi `worker/wrangler.toml`.
 In locale: `cd worker && npx wrangler dev --port 8788`, poi nella console del browser `localStorage.setItem('pz:api', 'http://127.0.0.1:8788')`.
-Prova completa delle partite online: `node tools/test-online.js http://127.0.0.1:8788`.
+Prova completa delle partite online: `node tools/test-online.js http://127.0.0.1:8788` (aggiungere `--tempo` o `--lungo` per le partite a tempo).
+Dopo aver aggiornato il codice, sul database pubblicato creato prima del 2026-11-12 serve una volta: `ALTER TABLE games ADD COLUMN deadline INTEGER` (vedi `worker/schema.sql`).
 
 ## Licenza
 

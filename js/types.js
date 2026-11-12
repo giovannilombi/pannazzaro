@@ -98,12 +98,20 @@
  * @property {RuleOptions} options
  * @property {TurnState} turn
  * @property {GameEvent[]} log   cronaca della partita, per lo storico e per rigiocarla
- * @property {Score[] | null} result classifica finale, null finché si gioca */
+ * @property {Score[] | null} result classifica finale, null finché si gioca
+ * @property {Clock} [clock]       solo online: orologio del turno (lo gestisce il server, rules.js non lo tocca) */
+
+/** Orologio delle partite online. deadline in millisecondi (Date.now() del server), già compresi i secondi di tolleranza.
+ * @typedef {object} Clock
+ * @property {number} secs       tempo per turno scelto da chi crea la partita
+ * @property {number} deadline   oltre questo istante Peppo gioca da solo il turno (autoTurn)
+ * @property {number[]} strikes  turni saltati di fila da ciascun giocatore: al terzo si esce */
 
 /** Regole configurabili (i default sono quelli scelti per Pannazzaro, vedi docs/REGOLE.md).
  * @typedef {object} RuleOptions
  * @property {boolean} coverOwn     true = si può coprire in una mossa un proprio tappeto tutto visibile. Default false (vietato su tutti)
- * @property {boolean} rotateAtEnd  variante ufficiale: si gira Peppo a fine turno invece che all'inizio. Default false */
+ * @property {boolean} rotateAtEnd  variante ufficiale: si gira Peppo a fine turno invece che all'inizio. Default false
+ * @property {number} [turnSecs]    solo online: secondi per turno (30, 60, 90, 120, 300; 86400 = senza fretta, un giorno) */
 
 /** Punteggio finale: monete + caselle visibili del proprio colore. A parità vince chi ha più monete.
  * @typedef {object} Score
@@ -126,6 +134,6 @@
 
 /** Voce della cronaca: l'azione, chi l'ha fatta e l'esito (per il dado: la faccia uscita).
  * skipped = nessuna posizione valida per il tappeto, che è stato scartato.
- * @typedef {{ by: PlayerIndex, round: number, action: Action | ResignAction | { type: 'place', cells: null }, roll?: DieFace, toll?: Toll, skipped?: boolean }} GameEvent */
+ * @typedef {{ by: PlayerIndex, round: number, action: Action | ResignAction | { type: 'place', cells: null }, roll?: DieFace, toll?: Toll, skipped?: boolean, auto?: boolean }} GameEvent  auto: mossa fatta da Peppo a tempo scaduto (autoTurn) */
 
 export {};

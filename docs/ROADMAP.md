@@ -11,8 +11,7 @@ Scelta del 2026-11-12: **multiplayer online subito** (ognuno sul suo dispositivo
 4. ✅ (locale) Interfaccia di gioco: lobby, scelta direzione, dado animato, pedaggio, piazzamento del tappeto con anteprima; passa e gioca sullo stesso dispositivo.
 
 5. Prossimi passi possibili:
-   - giocatore che sparisce a metà partita: oggi gli altri restano bloccati sul suo turno (lui può solo «Abbandona»).
-     Idea: dopo N ore senza mosse, chiunque può farlo saltare o farlo giocare a caso;
+   - ✅ giocatore che sparisce a metà partita: tempo per turno (da 30 s a 1 giorno), poi gioca Peppo; al terzo turno saltato si esce;
    - notifiche quando tocca a te (oggi: titolo della pagina che cambia e vibrazione);
    - hub "ziogiogames" con Twindoku.
 

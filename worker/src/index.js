@@ -1,7 +1,7 @@
 // Server di Pannazzaro (Cloudflare Worker + database D1).
 // Account (soprannome + PIN + codice segreto) e squadre: stesse regole e stesso codice di Twindoku.
 // Partite online: il server tiene lo stato completo e applica le mosse con le stesse regole del browser (js/rules.js).
-import { createGame, applyAction, resign, publicView, RuleError, COLOR_ORDER, COLORS_BY_PLAYERS } from '../../js/rules.js';
+import { createGame, applyAction, resign, autoTurn, publicView, RuleError, COLOR_ORDER, COLORS_BY_PLAYERS } from '../../js/rules.js';
 
 const AVATARS = ['🦊', '🐙', '🦉', '🐢', '🐱', '🐶', '🦁', '🐸', '🐼', '🦄', '🐧', '🐺', '🐯', '🐨', '🦝', '🐝'];
 const now = () => Math.floor(Date.now() / 1000);
@@ -181,6 +181,11 @@ async function joinTeam(env, p, t) {
 
 /* ---------------- partite online ---------------- */
 const MAX_SEATS = 4, MAX_OPEN = 12;
+// Tempo per turno (secondi). 86400 = "senza fretta": un giorno, così chi sparisce non blocca gli altri per sempre.
+// Ai secondi scelti si aggiungono GRACE ms di tolleranza (rete, aggiornamento ogni 2 s, animazioni).
+// Allo scadere Peppo gioca da solo il turno (autoTurn); al terzo turno saltato di fila il giocatore esce.
+const TURN_SECS = [30, 60, 90, 120, 300, 86400], DEFAULT_SECS = 86400, GRACE = 5000, MAX_STRIKES = 3;
+const restartClock = s => { if (s.clock) s.clock.deadline = Date.now() + s.clock.secs * 1000 + GRACE; };
 const seatOf = p => ({ id: p.id, name: p.name, avatar: p.avatar });
 const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
 async function loadGame(env, code) {
@@ -194,7 +199,7 @@ const seated = (g, p) => g.seats.some(s => s.id === p.id);
 function gameView(g, p) {
   return {
     game: {
-      code: g.code, status: g.status, version: g.version, updated: g.updated, options: g.options,
+      code: g.code, status: g.status, version: g.version, updated: g.updated, options: g.options, now: Date.now(),
       host: g.host_id === p.id, you: g.state ? g.state.players.findIndex(x => x.accountId === p.id) : -1,
       seats: g.seats.map(s => ({ name: s.name, avatar: s.avatar, me: s.id === p.id, host: s.id === g.host_id })),
     },
@@ -204,8 +209,9 @@ function gameView(g, p) {
 // Salva solo se nessun altro ha cambiato la partita nel frattempo (version).
 async function saveGame(env, g) {
   const t = now();
-  const r = await env.DB.prepare('UPDATE games SET status = ?, seats = ?, state = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?')
-    .bind(g.status, JSON.stringify(g.seats), g.state ? JSON.stringify(g.state) : null, t, g.id, g.version).run();
+  const deadline = g.status === 'play' && g.state && g.state.clock ? g.state.clock.deadline : null;
+  const r = await env.DB.prepare('UPDATE games SET status = ?, seats = ?, state = ?, deadline = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?')
+    .bind(g.status, JSON.stringify(g.seats), g.state ? JSON.stringify(g.state) : null, deadline, t, g.id, g.version).run();
   if (!r.meta.changes) throw new Oops('Nel frattempo la partita è andata avanti: riprova.', 409);
   g.version++; g.updated = t;
 }
@@ -216,6 +222,22 @@ async function award(env, g) {
   if (s.rugs.length < n * 2) return;
   const stmts = (s.result || []).map(r => env.DB.prepare('UPDATE players SET points = points + ? WHERE id = ?').bind(n - r.place + 1, s.players[r.player].accountId));
   if (stmts.length) await env.DB.batch(stmts);
+}
+
+// Tempo scaduto? Peppo gioca il turno di chi non ha mosso (al terzo di fila quel giocatore esce).
+// Non c'è un timer sul server: lo controlla chiunque guardi la partita (ogni 2 s) o provi una mossa.
+async function tick(env, g) {
+  const c = g.state && g.state.clock;
+  if (g.status !== 'play' || !c || Date.now() <= c.deadline) return g;
+  const seat = g.state.turn.current;
+  c.strikes[seat] = (c.strikes[seat] || 0) + 1;
+  g.state = autoTurn(g.state, { out: c.strikes[seat] >= MAX_STRIKES });
+  restartClock(g.state);
+  if (g.state.turn.phase === 'over') g.status = 'over';
+  try { await saveGame(env, g); }
+  catch (e) { if (e instanceof Oops && e.status === 409) return loadGame(env, g.code); throw e; } // l'ha già fatto qualcun altro
+  if (g.status === 'over') await award(env, g);
+  return g;
 }
 
 /* ---------------- rotte ---------------- */
@@ -373,7 +395,7 @@ const routes = {
     const p = await auth(env, req);
     const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM games g JOIN game_seats s ON s.game_id = g.id WHERE s.player_id = ? AND g.status IN ('lobby', 'play')").bind(p.id).first();
     if (open.n >= MAX_OPEN) throw new Oops('Hai già troppe partite aperte: finiscine o abbandonane qualcuna.', 429);
-    const options = { rotateAtEnd: !!body.rotateAtEnd };
+    const options = { rotateAtEnd: !!body.rotateAtEnd, turnSecs: TURN_SECS.includes(+body.turnSecs) ? +body.turnSecs : DEFAULT_SECS };
     let g = null;
     for (let i = 0; i < 6 && !g; i++) {
       try {
@@ -410,6 +432,8 @@ const routes = {
     const k = rnd(n), order = [...seats.slice(k), ...seats.slice(0, k)];
     g.state = createGame({ players: order, mode: 'online', seed: crypto.getRandomValues(new Uint32Array(1))[0], options: g.options });
     g.state.id = g.code;
+    g.state.clock = { secs: g.options.turnSecs || DEFAULT_SECS, deadline: 0, strikes: order.map(() => 0) };
+    restartClock(g.state);
     g.status = 'play';
     await saveGame(env, g);
     return gameView(g, p);
@@ -420,10 +444,11 @@ const routes = {
   'GET /api/game': async (env, req, url) => {
     const p = await auth(env, req), code = cleanCode(url.searchParams.get('code')), v = url.searchParams.get('v');
     if (v != null) {
-      const r = await env.DB.prepare('SELECT g.version FROM games g JOIN game_seats s ON s.game_id = g.id AND s.player_id = ? WHERE g.code = ? AND g.status != \'gone\'').bind(p.id, code).first();
-      if (r && r.version === +v) return { same: true, version: r.version };
+      const r = await env.DB.prepare('SELECT g.version, g.deadline FROM games g JOIN game_seats s ON s.game_id = g.id AND s.player_id = ? WHERE g.code = ? AND g.status != \'gone\'').bind(p.id, code).first();
+      if (r && r.version === +v && !(r.deadline && Date.now() > r.deadline)) return { same: true, version: r.version };
     }
-    const g = await loadGame(env, code);
+    let g = await loadGame(env, code);
+    if (seated(g, p)) g = await tick(env, g);
     if (!seated(g, p)) {
       if (g.status === 'lobby') return { ...gameView(g, p), seated: false };
       throw new Oops('Non sei in questa partita.', 403);
@@ -433,14 +458,20 @@ const routes = {
 
   // una mossa (le stesse azioni del gioco sul dispositivo, più { type: 'resign' } per abbandonare)
   'POST /api/game/act': async (env, req, url, body) => {
-    const p = await auth(env, req), g = await loadGame(env, body.code);
+    const p = await auth(env, req);
+    const g = await tick(env, await loadGame(env, body.code));
     if (g.status !== 'play') throw new Oops(g.status === 'over' ? 'La partita è finita.' : 'La partita non è ancora cominciata.', 409);
     if (body.v != null && +body.v !== g.version) throw new Oops('Nel frattempo la partita è andata avanti: aggiorno il tabellone.', 409, { stale: true });
     const seat = g.state.players.findIndex(x => x.accountId === p.id);
     if (seat < 0) throw new Oops('Non sei in questa partita.', 403);
     const action = body.action && typeof body.action === 'object' ? body.action : {};
+    const round = g.state.turn.round;
     try { g.state = action.type === 'resign' ? resign(g.state, seat) : applyAction(g.state, seat, action); }
     catch (e) { if (e instanceof RuleError) throw new Oops(e.message, 409); throw e; }
+    if (g.state.clock) {
+      if (action.type !== 'resign') g.state.clock.strikes[seat] = 0; // ha giocato: si riparte da zero
+      if (g.state.turn.round !== round) restartClock(g.state);
+    }
     if (g.state.turn.phase === 'over') g.status = 'over';
     await saveGame(env, g);
     if (g.status === 'over') await award(env, g);
@@ -472,7 +503,7 @@ const routes = {
         const cur = st && g.status === 'play' ? st.players[st.turn.current] : null;
         const win = st && st.result ? st.result.filter(r => r.place === 1).map(r => st.players[r.player].name) : [];
         return {
-          code: g.code, status: g.status, updated: g.updated, host: g.host_id === p.id,
+          code: g.code, status: g.status, updated: g.updated, host: g.host_id === p.id, secs: JSON.parse(g.options).turnSecs || DEFAULT_SECS,
           seats: seats.map(s => ({ name: s.name, avatar: s.avatar, me: s.id === p.id })),
           turn: cur ? { name: cur.name, me: cur.accountId === p.id } : null, winners: win,
         };

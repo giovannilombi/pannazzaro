@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS games (
   seats   TEXT NOT NULL,                -- JSON [{ id, name, avatar }] in ordine di arrivo
   state   TEXT,                         -- JSON GameState, null finché si è in sala d'attesa
   version INTEGER NOT NULL DEFAULT 0,   -- cresce a ogni mossa: serve per non applicare mosse su un tabellone vecchio
+  deadline INTEGER,                     -- ms: scadenza del turno in corso (copia di state.clock.deadline, per il controllo veloce)
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL
 );
@@ -64,3 +65,6 @@ CREATE TABLE IF NOT EXISTS game_seats (
   PRIMARY KEY (game_id, player_id)
 );
 CREATE INDEX IF NOT EXISTS game_seats_player ON game_seats(player_id);
+
+-- Aggiunta del 2026-11-12 (partite a tempo), per i database creati prima:
+--   ALTER TABLE games ADD COLUMN deadline INTEGER;

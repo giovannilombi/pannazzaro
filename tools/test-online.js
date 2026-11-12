@@ -1,10 +1,13 @@
 // Prova delle partite online contro un server vero (locale o pubblicato):
-//   node tools/test-online.js http://127.0.0.1:8788
+//   node tools/test-online.js http://127.0.0.1:8788            (circa 10 secondi)
+//   node tools/test-online.js http://127.0.0.1:8788 --tempo    + partita a 30 s: un turno scaduto (40 s in più)
+//   node tools/test-online.js http://127.0.0.1:8788 --lungo    + fino all'uscita per tre turni saltati (3 minuti in più)
 // Crea 3 giocatori di prova, una partita, la gioca fino in fondo e controlla turni, errori e punti.
 // Sul server pubblicato lascia i giocatori di prova (nomi "pAnna…", "pBeppe…"): usarlo solo in locale, salvo controlli veloci.
 import { legalPlacements } from '../js/rules.js';
 
 const BASE = process.argv[2] || 'http://127.0.0.1:8788';
+const LONG = process.argv.includes('--lungo'), TIMED = LONG || process.argv.includes('--tempo');
 let fails = 0;
 const ok = (c, m) => { console.log((c ? '✓ ' : '✗ ') + m); if (!c) fails++; };
 async function call(method, path, body, token) {
@@ -32,6 +35,7 @@ const notHost = await call('POST', '/api/game/start', { code }, P[1].token);
 ok(notHost.status === 403, 'solo chi crea fa cominciare');
 const st = await call('POST', '/api/game/start', { code }, P[0].token);
 ok(st.game.status === 'play' && st.state && st.state.rng === 0, 'si comincia, senza seme visibile');
+ok(st.state.clock && st.state.clock.secs === 86400 && st.state.clock.deadline > st.game.now, 'senza scelta: un giorno per turno');
 const late = await call('POST', '/api/game/join', { code }, (await call('POST', '/api/signup', { name: 'pDario' + tag, pin: '2580', avatar: '🐢' })).token);
 ok(late.status === 409, 'a partita cominciata non si entra');
 
@@ -79,6 +83,41 @@ const g3 = await call('POST', '/api/game/new', {}, P[2].token);
 await call('POST', '/api/game/leave', { code: g3.game.code }, P[2].token);
 const gone = await call('POST', '/api/game/join', { code: g3.game.code }, P[0].token);
 ok(gone.status === 404, 'sala chiusa da chi l\'ha creata');
+
+// partita a tempo: chi non muove si vede giocare il turno da Peppo, al terzo di fila esce
+if (TIMED) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const bad = await call('POST', '/api/game/new', { turnSecs: 7 }, P[1].token);
+  ok(bad.game.options.turnSecs === 86400, 'tempo non previsto: un giorno');
+  await call('POST', '/api/game/leave', { code: bad.game.code }, P[1].token);
+  const t = await call('POST', '/api/game/new', { turnSecs: 30 }, P[1].token), tc = t.game.code;
+  await call('POST', '/api/game/join', { code: tc }, P[2].token);
+  let tv = await call('POST', '/api/game/start', { code: tc }, P[1].token);
+  const first = tv.state.turn.current, left = tv.state.clock.deadline - tv.game.now;
+  ok(tv.state.clock.secs === 30 && left > 30000 && left <= 35000, `30 secondi a turno (+ tolleranza: ${left} ms)`);
+  const waitTurn = async (limit) => {
+    const v0 = tv.game.version;
+    for (let k = 0; k < limit / 2000; k++) {
+      await sleep(2000);
+      const r = await call('GET', `/api/game?code=${tc}&v=${tv.game.version}`, null, P[1].token);
+      if (!r.same) { tv = r; if (r.game.version > v0) return true; }
+    }
+    return false;
+  };
+  ok(await waitTurn(45000), 'allo scadere il server gioca da solo');
+  const auto = tv.state.log.filter(ev => ev.auto);
+  ok(tv.state.turn.current !== first && auto.length >= 3 && tv.state.rugs.length === 1 && tv.state.clock.strikes[first] === 1, `Peppo gioca il turno intero (${auto.map(e => e.action.type).join(', ')})`);
+  if (LONG) {
+    for (let k = 0; k < 4 && tv.game.status === 'play'; k++) await waitTurn(45000);
+    ok(tv.game.status === 'over' && tv.state.players[first].out && tv.state.log.some(ev => ev.auto && ev.action.type === 'resign'), 'al terzo turno saltato di fila si esce');
+  } else {
+    // chi gioca azzera il conto
+    const by = tv.state.turn.current, tok = P.find(p => p.name === tv.state.players[by].name).token;
+    const r = await call('POST', '/api/game/act', { code: tc, v: tv.game.version, action: { type: 'orient', turn: 'straight' } }, tok);
+    ok(r.game && r.state.clock.strikes[by] === 0, 'chi muove ha il conto dei turni saltati a zero');
+    await call('POST', '/api/game/act', { code: tc, action: { type: 'resign' } }, tok);
+  }
+}
 
 if (fails) { console.log(`\n${fails} prove fallite`); process.exit(1); }
 console.log('\nTutto a posto.');

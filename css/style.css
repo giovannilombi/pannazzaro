@@ -212,6 +212,14 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 .35em; border-radius: 
 }
 .turn-av { position: relative; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: var(--glaze); font-size: 26px; box-shadow: 0 0 0 3px var(--rug-dark); }
 .turn-head h2 { position: relative; margin: 0; font: 22px/1.1 var(--display); text-shadow: 0 2px 0 var(--rug-dark); }
+.clock {
+  position: relative; margin-left: auto; padding: 4px 10px; border-radius: 999px; background: var(--glaze); color: var(--ink);
+  font: 17px/1.2 var(--display); font-variant-numeric: tabular-nums; box-shadow: 0 0 0 3px var(--rug-dark); white-space: nowrap;
+}
+.clock.hurry { background: var(--bad); color: #fff; box-shadow: 0 0 0 3px #fff; animation: hurry 1s ease-in-out infinite; }
+.clock.zero { animation: none; opacity: .85; }
+@keyframes hurry { 50% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .clock.hurry { animation: none; } }
 
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0; padding: 12px 14px 4px; list-style: none; counter-reset: s; }
 .steps li { counter-increment: s; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--muted); }
@@ -445,6 +453,14 @@ form.inline .btn { min-height: 46px; }
 .online-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .tile { display: grid; gap: 12px; align-content: start; padding: 16px; border-radius: 14px; background: #fff; border: 2px solid var(--glaze-3); }
 .tile h3 { margin: 0; }
+.secs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; border: 0; }
+.secs legend { margin-bottom: 6px; padding: 0; font-weight: 800; font-size: 14px; }
+.secs label { position: relative; }
+.secs input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.secs span { display: block; padding: 6px 11px; border-radius: 999px; border: 2px solid var(--glaze-3); background: var(--glaze); font-weight: 700; font-size: 14px; }
+.secs input:checked + span { border-color: var(--ink); background: var(--ink); color: #fff; }
+.secs input:focus-visible + span { outline: 3px solid var(--ochre); outline-offset: 2px; }
+.secs label:hover span { border-color: var(--ink); }
 .gamelist ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .gamelist li { display: flex; align-items: center; gap: 6px; }
 .gl { flex: 1; min-width: 0; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--glaze-3); background: #fff; text-align: left; }

@@ -1,5 +1,5 @@
 // Prove rapide delle regole pure:  npm test  (oppure node tools/test-rules.js)
-import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS, stepFrom, walk, zoneAt, tollFor, placeError, legalPlacements, applyAction, finalScores, publicView, resign, RuleError } from '../js/rules.js';
+import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS, stepFrom, walk, zoneAt, tollFor, placeError, legalPlacements, applyAction, finalScores, publicView, resign, autoTurn, RuleError } from '../js/rules.js';
 
 let fails = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) fails++; };
@@ -140,6 +140,25 @@ ok(pv.rng === 0 && pv.players.every(p => p.pile.slice(1).every(c => c === null))
   let s4 = playOut(11, 4);
   let t4 = false; try { resign(s4, 0); } catch (e) { t4 = true; }
   ok(t4, 'a partita finita non si abbandona');
+}
+
+// tempo scaduto: Peppo gioca da solo
+{
+  let st = createGame({ players: [{}, {}, {}], seed: 21 });
+  const a = autoTurn(st);
+  ok(a.turn.current === 1 && a.turn.phase === 'orient' && a.rugs.length === 1 && a.log.every(ev => ev.auto), 'a tempo scaduto Peppo gioca il turno intero');
+  ok(st.log.length === 0, 'autoTurn non cambia lo stato vecchio');
+  let allAuto = true, coinsAuto = true;
+  for (let seed = 1; seed <= 120; seed++) {
+    let g = createGame({ players: Array.from({ length: 2 + (seed % 3) }, () => ({})), seed, options: { rotateAtEnd: seed % 2 === 0 } });
+    const total = g.players.reduce((n, p) => n + p.coins, 0);
+    for (let k = 0; k < 200 && g.turn.phase !== 'over'; k++) g = autoTurn(g);
+    if (g.turn.phase !== 'over') allAuto = false;
+    if (g.players.reduce((n, p) => n + p.coins, 0) !== total) coinsAuto = false;
+  }
+  ok(allAuto && coinsAuto, '120 partite giocate solo da Peppo arrivano alla fine, monete conservate (anche con la variante)');
+  const o = autoTurn(st, { out: true });
+  ok(o.players[0].out && o.turn.current === 1 && o.log[0].auto && o.log[0].action.type === 'resign', 'al terzo turno saltato si esce');
 }
 
 if (fails) { console.log(`\n${fails} prove fallite`); process.exit(1); }

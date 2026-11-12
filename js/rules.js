@@ -336,6 +336,32 @@ export function resign(state, by) {
   return s;
 }
 
+/** Tempo scaduto (online, partite a tempo): Peppo gioca da solo il turno di chi non ha mosso.
+ * Tira dritto, lancia, paga e stende il tappeto in una posizione valida a caso. Gli eventi aggiunti hanno auto: true.
+ * Con out: true il giocatore invece esce (troppi turni saltati di fila), come con resign.
+ * @param {GameState} state @param {{ out?: boolean }} [opts] @returns {GameState} */
+export function autoTurn(state, { out = false } = {}) {
+  if (state.turn.phase === 'over') throw new RuleError('La partita è finita.');
+  const by = state.turn.current, n0 = state.log.length;
+  let s;
+  if (out) s = resign(state, by);
+  else {
+    s = state;
+    const round = s.turn.round;
+    for (let guard = 0; guard < 8 && s.turn.round === round && s.turn.phase !== 'over'; guard++) {
+      const ph = s.turn.phase;
+      if (ph === 'place') {
+        const all = legalPlacements(s), r = rand(s.rng);
+        const cells = all[Math.floor(r.u * all.length)];
+        s = applyAction({ ...s, rng: r.rng }, by, { type: 'place', cells });
+      } else s = applyAction(s, by, ph === 'orient' ? { type: 'orient', turn: 'straight' } : { type: ph });
+    }
+    if (s === state) s = clone(state);
+  }
+  for (const ev of s.log.slice(n0)) ev.auto = true;
+  return s;
+}
+
 /** Caso rarissimo: nessuna posizione valida per il tappeto. Il tappeto si scarta e il turno va avanti. */
 function skipIfStuck(s) {
   if (legalPlacements(s).length) return;

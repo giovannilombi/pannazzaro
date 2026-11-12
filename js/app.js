@@ -9,7 +9,7 @@ import {
 import { createBoard, arcId, DIR_NAME } from './board.js';
 import * as acc from './account.js';
 import { initProfile } from './profile.js';
-import { initOnline } from './online.js';
+import { initOnline, timeName } from './online.js';
 
 const $ = s => /** @type {HTMLElement} */ (document.querySelector(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,7 +79,7 @@ async function resumeOnline(code) {
 function enterOnline(r) {
   if (!r || !r.state) return ON.open(r?.game?.code);
   closeModal();
-  NET = { code: r.game.code, version: r.game.version, you: r.game.you, status: r.game.status };
+  NET = { code: r.game.code, version: r.game.version, you: r.game.you, status: r.game.status, skew: skewOf(r) };
   G = r.state; ui.sel = null; ui.face = 0; ui.busy = false;
   store.set(ONLINE, NET.code);
   B.render(G); refresh(true);
@@ -92,9 +92,31 @@ function leaveOnline() {
   document.title = 'Pannazzaro';
 }
 function setNet(r) {
-  NET.version = r.game.version; NET.status = r.game.status; NET.you = r.game.you;
+  NET.version = r.game.version; NET.status = r.game.status; NET.you = r.game.you; NET.skew = skewOf(r);
   ON.setVersion(NET.version);
 }
+// differenza fra l'orologio del server e quello del dispositivo (per il conto alla rovescia)
+const skewOf = r => (r.game.now ? r.game.now - Date.now() : 0);
+
+/* ---------------- orologio del turno (partite online a tempo) ---------------- */
+// Il server concede GRACE ms in più (rete, aggiornamenti, animazioni): qui si mostra il tempo "pulito".
+const GRACE = 5000;
+let hurried = '';
+function clockTick() {
+  const el = $('#clock'), c = NET && G && G.clock;
+  if (!c || G.turn.phase === 'over') { el.hidden = true; return; }
+  const left = Math.max(0, c.deadline - GRACE - (Date.now() + NET.skew)), s = Math.ceil(left / 1000);
+  el.hidden = false;
+  el.textContent = s >= 3600 ? `⏱ ${Math.floor(s / 3600)} h` : s >= 600 ? `⏱ ${Math.floor(s / 60)} min` : `⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  el.title = `Tempo che resta per questo turno (${timeName(c.secs)})`;
+  const hurry = c.secs <= 300 && s <= 10;
+  el.classList.toggle('hurry', hurry);
+  el.classList.toggle('zero', left === 0);
+  const key = `${NET.code}:${G.turn.round}`;
+  if (hurry && myTurn() && left > 0 && hurried !== key) { hurried = key; navigator.vibrate?.([80, 60, 80]); }
+}
+setInterval(clockTick, 250);
+
 /** Arriva un nuovo stato dal server: rivedo le mosse degli altri (direzione, cammino di Peppo, tappeti) e poi aggiorno.
  * Se la pagina è occupata (animazione o mossa in corso) non faccio niente: la versione non avanza e il prossimo
  * aggiornamento lo ripropone (vedi online.js). */
@@ -109,6 +131,12 @@ async function applyRemote(r, e) {
     if (events.length && events.length <= 12 && !reduced()) await replay(old, r.state, events);
   } catch (x) { console.error(x); }
   const tolls = events.filter(ev => ev.action.type === 'pay' && ev.toll);
+  const mineAuto = events.filter(ev => ev.auto && ev.by === NET.you);
+  if (mineAuto.some(ev => ev.action.type === 'resign')) toast('<b>⏱ Hai saltato tre turni di fila: sei fuori dal gioco.</b> Puoi guardare la partita fino alla fine.', 8000);
+  else if (mineAuto.length) {
+    const n = r.state.clock ? r.state.clock.strikes[NET.you] : 0;
+    toast(`<b>⏱ Tempo scaduto!</b> Peppo ha giocato il turno al posto tuo.${n ? ` ${n === 1 ? 'È il primo turno che salti' : 'Hai saltato due turni di fila'}: al terzo esci dal gioco.` : ''}`, 7000);
+  }
   G = r.state; setNet(r); ui.sel = null;
   ui.busy = false;
   B.render(G); refresh(G.turn.current !== who || events.length > 0);
@@ -197,7 +225,8 @@ function renderPlayers() {
 function eventText(ev) {
   const who = esc(G.players[ev.by].name), a = ev.action;
   if (ev.skipped) return `${who} non trova posto per il tappeto: lo perde.`;
-  if (a.type === 'resign') return `${who} abbandona la partita.`;
+  if (a.type === 'resign') return ev.auto ? `${who} salta tre turni di fila ed esce dal gioco.` : `${who} abbandona la partita.`;
+  if (ev.auto && a.type === 'orient') return `⏱ Tempo scaduto per ${who}: Peppo tira dritto da solo.`;
   if (a.type === 'orient') return 'dir' in a ? `${who} fa partire Peppo verso ${DIR_NAME[a.dir]}.` : a.turn === 'straight' ? `${who} tira dritto.` : `${who} gira Peppo a ${a.turn === 'left' ? 'sinistra' : 'destra'}.`;
   if (a.type === 'roll') return `${who} lancia il dado: ${ev.roll}.`;
   if (a.type === 'pay') { const t = ev.toll; return `${who} paga ${coins(t.paid)} a ${esc(G.players[t.to].name)}${t.paid < t.amount ? ' ed esce dal gioco' : ''}.`; }
@@ -678,6 +707,7 @@ function helpHtml() {
       <p>La partita finisce quando tutti hanno steso i loro tappeti.</p>
       <h3>Online</h3>
       <p>Con un profilo (soprannome e PIN) premi <b>Online</b>: crei una partita e mandi il codice agli amici, oppure scrivi il codice che ti hanno mandato. Quando non tocca a te vedi le mosse degli altri sul tabellone; quando tocca a te, il titolo della pagina diventa «● Tocca a te». A fine partita prendi punti di classifica secondo il posto.</p>
+      <p><b>Tempo per turno.</b> Chi crea la partita sceglie quanto dura ogni turno: da 30 secondi a 5 minuti, oppure «senza fretta» (un giorno). Il tempo che resta si vede in alto, accanto al nome di chi gioca. Allo scadere Peppo gioca da solo: tira dritto, lancia il dado, paga e stende il tappeto in un posto a caso. Chi salta tre turni di fila esce dal gioco: i suoi tappeti restano sul tabellone ma non fanno più pagare, e le sue monete non contano più.</p>
     </section>
     <section>
       <h3>Comandi</h3>
