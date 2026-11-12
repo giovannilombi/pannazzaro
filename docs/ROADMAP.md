@@ -17,7 +17,8 @@ Scelta del 2026-11-12: **multiplayer online subito** (ognuno sul suo dispositivo
 
 ## Decisioni aperte
 
-- Account condivisi con Twindoku (un unico server "ziogiogames") o separati? Oggi: separati, stesso codice.
+- Account condivisi con Twindoku: **deciso il 2026-11-12 di tenerli separati** per ora (stesso codice, database diversi).
+  Se un giorno si uniscono: il worker di Pannazzaro userebbe anche il D1 di Twindoku per profili e squadre, con lo stesso PEPPER.
 - Punti di classifica (scelta provvisoria di Claude, da confermare): a fine partita online, in N giocatori
   il 1° prende N punti, il 2° N−1… chi esce 0; contano solo le partite con almeno 2 tappeti a testa sul tabellone.
   La squadra fa la media dei 5 migliori, come in Twindoku.

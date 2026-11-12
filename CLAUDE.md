@@ -95,3 +95,4 @@ cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # d
   al terzo turno saltato **di fila** il giocatore esce come con «Abbandona»: tappeti sul tabellone restano ma neutri, monete perse.
   Nessun timer sul server: lo controlla chi guarda la partita (`tick()` nel worker, colonna `games.deadline` per il controllo veloce).
   Orologio in `state.clock` { secs, deadline, strikes }.
+- **2026-11-12** — Account **separati** da Twindoku, per scelta di Giovanni (per ora). Non unirli senza chiederlo.
