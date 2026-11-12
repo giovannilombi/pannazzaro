@@ -1,0 +1,13 @@
+{
+  "name": "Pannazzaro",
+  "short_name": "Pannazzaro",
+  "description": "Tappeti, monete e Peppo o' Pannazzaro: gioco da tavolo per 2-4 giocatori.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#e9dcc0",
+  "theme_color": "#7a3b1e",
+  "lang": "it",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

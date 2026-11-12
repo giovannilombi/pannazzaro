@@ -1,0 +1,2 @@
+# Copia questo file in .dev.vars (ignorato da git) per il server locale.
+PEPPER=metti-qui-una-stringa-lunga-e-casuale

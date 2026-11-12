@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pannazzaro</title>
+<meta name="description" content="Gioco da tavolo di tappeti e monete per 2-4 giocatori: guida Peppo o' Pannazzaro e stendi i tuoi tappeti nel vicolo.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=Nunito:wght@400;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#7a3b1e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pannazzaro">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="brand" href="#" aria-label="Pannazzaro"><span class="logo" aria-hidden="true">🧶</span><span>Pannazzaro</span></a>
+  </header>
+  <main class="layout">
+    <section class="stage" aria-label="Tabellone">
+      <div class="boardbox"><div id="board"></div></div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </section>
+    <aside class="side" aria-label="Giocatori">
+      <h2>Giocatori</h2>
+      <ul id="players" class="players"></ul>
+    </aside>
+  </main>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

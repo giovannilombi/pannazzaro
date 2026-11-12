@@ -1,0 +1,9 @@
+{
+  "name": "pannazzaro",
+  "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node tools/test-rules.js"
+  }
+}

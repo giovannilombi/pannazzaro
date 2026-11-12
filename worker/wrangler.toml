@@ -1,0 +1,15 @@
+# Server di Pannazzaro (stesso modello di twindoku-api).
+# Prima pubblicazione (da fare una volta, a mano):
+#   npx wrangler d1 create pannazzaro            → copia il database_id qui sotto
+#   npx wrangler d1 execute pannazzaro --remote --file=schema.sql
+#   npx wrangler secret put PEPPER               → stringa lunga e casuale. Se si perde, nessuno entra più con il PIN: non cambiarlo.
+#   npx wrangler deploy
+name = "pannazzaro-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pannazzaro"
+database_id = "DA-CREARE"
