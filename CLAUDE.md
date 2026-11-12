@@ -13,6 +13,7 @@ Fa parte della famiglia di giochi di Giovanni (hub "ziogiogames", ancora da crea
 stesso stack, stesso sistema di account e squadre.
 
 - Repo: https://github.com/giovannilombi/pannazzaro (pubblico dal 2026-11-12)
+- Sito: https://giovannilombi.github.io/pannazzaro/ (GitHub Pages da `main`, si aggiorna a ogni push)
 - Sito statico puro (niente build, niente dipendenze), come Twindoku. Server: Cloudflare Worker `pannazzaro-api` + D1 `pannazzaro` (**non ancora creati**).
 
 ## Vincoli da rispettare sempre
