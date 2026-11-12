@@ -1,11 +1,13 @@
 # Roadmap
 
 1. ✅ Scaffold, interfacce dello stato, tabellone con Peppo.
+Scelta del 2026-11-12: **multiplayer online subito** (ognuno sul suo dispositivo), la modalità locale viene gratis dallo stesso motore.
+
 2. Motore completo in `js/rules.js`: movimento (con i bordi), pedaggio, piazzamento, fine partita, `applyAction(state, action)`. Prove in `tools/test-rules.js`.
-3. Interfaccia di gioco locale (passa e gioca): scelta direzione, dado animato, pedaggio, piazzamento del tappeto con anteprima.
-4. Account e squadre nell'interfaccia (finestre di `twindoku/js/profile.js`), creazione di D1 e worker.
-5. Partite online: tabella `games` (stato JSON + versione), il worker applica le azioni con `rules.js` e tiene il seme del dado;
-   i client aggiornano con polling leggero (o Durable Objects / WebSocket se serve tempo reale).
+3. Server di gioco: creazione di D1 e worker, account e squadre nell'interfaccia (finestre di `twindoku/js/profile.js`),
+   partite online con codice d'invito. Il worker applica le azioni con `rules.js` e tiene seme del dado e pile dei tappeti;
+   ai client manda lo stato filtrato. Da scegliere: D1 + polling oppure Durable Objects + WebSocket (tempo reale).
+4. Interfaccia di gioco: lobby, scelta direzione, dado animato, pedaggio, piazzamento del tappeto con anteprima; passa e gioca sullo stesso dispositivo.
 
 ## Decisioni aperte
 

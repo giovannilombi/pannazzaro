@@ -32,7 +32,7 @@ stesso stack, stesso sistema di account e squadre.
 | --- | --- |
 | `index.html`, `css/style.css` | Pagina e grafica (tufo e maioliche). Token in `:root` |
 | `js/types.js` | **Interfacce dello stato** (JSDoc): `GameState`, `Board`, `Rug`, `Peppo`, `PlayerState`, `TurnState`, `Toll`, `Action`… |
-| `js/rules.js` | Costanti (7×7, 30 monete, dado 1-2-2-3-3-4, colori) e regole pure: `createGame`, `turnDir`, `rollDie` |
+| `js/rules.js` | Costanti (7×7, 30 monete, dado 1-2-2-3-3-4, tappeti per n. giocatori, colori, opzioni) e regole pure: `createGame`, `turnDir`, `rand`, `rollDie` |
 | `js/board.js` | Componente tabellone: `renderBoard(el, state)`, `placePeppo(el, peppo)` |
 | `js/app.js` | Avvio (per ora partita locale di prova; `#demo` mette dei tappeti finti) |
 | `js/account.js` | Profili, chiamate al server, squadre (da Twindoku, chiavi locali `pz:`) |
@@ -54,3 +54,6 @@ cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.v
 - **2026-11-12** — Scaffold iniziale allineato a Twindoku: vanilla JS a moduli, niente build, GitHub Pages + Cloudflare Worker/D1.
   Interfacce dello stato in JSDoc (non TypeScript, per non introdurre una build). Tabellone con Peppo al centro (3,3) rivolto a Nord.
   Account e squadre copiati dal server di Twindoku (tolti casi, caso del giorno e progressi). Database separato da Twindoku.
+- **2026-11-12** — Regole fissate (dettagli in `docs/REGOLE.md`, ricerca su regolamenti ufficiali 2007/2025 e codice BGA):
+  2–4 giocatori con tappeti ufficiali (12/15/24, in 2 due colori a testa); copertura in una mossa vietata su **tutti** i tappeti;
+  direzione libera al primo turno; bordi con archi d'angolo NE e SW. Multiplayer **online subito**.

@@ -16,8 +16,9 @@ const state = createGame({
 if (location.hash === '#demo') {
   const put = (owner, a, b) => {
     const id = state.rugs.length + 1;
-    state.rugs.push({ id, owner, cells: [a, b], round: id });
-    for (const c of [a, b]) state.board[c.y][c.x] = { rug: id, owner };
+    const color = state.players[owner].colors[0];
+    state.rugs.push({ id, owner, color, cells: [a, b], round: id });
+    for (const c of [a, b]) state.board[c.y][c.x] = { rug: id, owner, color };
   };
   put(0, { x: 3, y: 2 }, { x: 4, y: 2 });
   put(1, { x: 2, y: 3 }, { x: 2, y: 4 });
@@ -30,15 +31,15 @@ if (location.hash === '#demo') {
 
 function renderPlayers() {
   $('#players').innerHTML = state.players.map((p, i) => `
-    <li class="player${i === state.turn.current ? ' now' : ''}" style="--rug:${COLORS[p.color].hex}">
-      <span class="swatch rug-${p.color}"></span>
+    <li class="player${i === state.turn.current ? ' now' : ''}" style="--rug:${COLORS[p.colors[0]].hex}">
+      <span class="swatches">${p.colors.map(c => `<span class="swatch rug-${c}" style="--rug:${COLORS[c].hex}"></span>`).join('')}</span>
       <span class="av">${p.avatar}</span>
       <b>${esc(p.name)}</b>
       <span class="stat" title="Monete">🪙 ${p.coins}</span>
-      <span class="stat" title="Tappeti in mano">🧶 ${p.rugsLeft}</span>
+      <span class="stat" title="Tappeti in mano">🧶 ${p.pile.length}</span>
     </li>`).join('');
 }
 
 renderBoard($('#board'), state);
 renderPlayers();
-$('#status').textContent = `Tocca a ${state.players[state.turn.current].name}: scegli dove far girare Peppo.`;
+$('#status').textContent = `Tocca a ${state.players[state.turn.current].name}: scegli in che direzione parte Peppo.`;

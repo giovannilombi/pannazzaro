@@ -19,7 +19,8 @@
  * @typedef {1 | 2 | 3 | 4} DieFace */
 
 /** Una casella del tabellone: il tappeto visibile in cima (quelli sotto non contano più), oppure null se è vuota.
- * @typedef {{ rug: number, owner: PlayerIndex } | null} BoardCell */
+ * Il colore serve perché in 2 giocatori ognuno ha due colori, e le zone di colori diversi non si sommano nel pedaggio.
+ * @typedef {{ rug: number, owner: PlayerIndex, color: PlayerColor } | null} BoardCell */
 
 /** Tabellone 7×7, indicizzato board[y][x].
  * @typedef {BoardCell[][]} Board */
@@ -28,6 +29,7 @@
  * @typedef {object} Rug
  * @property {number} id        progressivo, 1 = primo tappeto posato nella partita
  * @property {PlayerIndex} owner
+ * @property {PlayerColor} color
  * @property {[Cell, Cell]} cells due caselle ortogonalmente adiacenti
  * @property {number} round     turno (globale) in cui è stato posato */
 
@@ -43,17 +45,18 @@
 /** Da 0 a 3, è anche l'ordine di gioco.
  * @typedef {0 | 1 | 2 | 3} PlayerIndex */
 
-/** Colore dei tappeti di un giocatore (vedi COLORS in rules.js).
+/** Colore dei tappeti (vedi COLORS in rules.js). I tappeti degli eliminati restano col loro colore ma sono neutri.
  * @typedef {'pomodoro' | 'golfo' | 'limone' | 'basilico'} PlayerColor */
 
 /** @typedef {object} PlayerState
  * @property {number | null} accountId id del giocatore sul server (stesso sistema di Twindoku); null = ospite / gioco sullo stesso dispositivo
  * @property {string} name
  * @property {string} avatar   emoji, come in Twindoku
- * @property {PlayerColor} color
+ * @property {PlayerColor[]} colors 1 colore (3-4 giocatori) o 2 (2 giocatori)
  * @property {number} coins    parte da 30
- * @property {number} rugsLeft tappeti ancora in mano (parte da RUGS_PER_PLAYER)
- * @property {boolean} out     true = senza soldi per pagare: è fuori, i suoi tappeti restano sul tabellone */
+ * @property {PlayerColor[]} pile tappeti ancora in mano, nell'ordine in cui si pescano (in 2 giocatori i due colori sono mescolati).
+ *                             Il prossimo è pile[0]. Online il server manda ai client solo la lunghezza.
+ * @property {boolean} out     true = non ha potuto pagare: è fuori, i suoi tappeti sul tabellone restano ma diventano neutri */
 
 /* ---------------- turno ---------------- */
 
@@ -73,7 +76,7 @@
 /** @typedef {object} TurnState
  * @property {PlayerIndex} current chi gioca
  * @property {Phase} phase
- * @property {number} round        turni giocati dall'inizio (0, 1, 2...)
+ * @property {number} round        turni giocati dall'inizio (0, 1, 2...). Al round 0 la direzione è libera
  * @property {DieFace | null} roll ultimo lancio, null prima di 'roll'
  * @property {Cell[]} path         caselle attraversate da Peppo nell'ultimo movimento (per l'animazione)
  * @property {Toll | null} toll    null se Peppo è su una casella vuota o su un tappeto proprio */
@@ -91,10 +94,16 @@
  * @property {Board} board
  * @property {Rug[]} rugs        tutti i tappeti posati, in ordine
  * @property {Peppo} peppo
- * @property {PlayerState[]} players da 2 a 4 (le regole di partenza sono pensate per 4)
+ * @property {PlayerState[]} players da 2 a 4
+ * @property {RuleOptions} options
  * @property {TurnState} turn
  * @property {GameEvent[]} log   cronaca della partita, per lo storico e per rigiocarla
  * @property {Score[] | null} result classifica finale, null finché si gioca */
+
+/** Regole configurabili (i default sono quelli scelti per Pannazzaro, vedi docs/REGOLE.md).
+ * @typedef {object} RuleOptions
+ * @property {boolean} coverOwn     true = si può coprire in una mossa un proprio tappeto tutto visibile. Default false (vietato su tutti)
+ * @property {boolean} rotateAtEnd  variante ufficiale: si gira Peppo a fine turno invece che all'inizio. Default false */
 
 /** Punteggio finale: monete + caselle visibili del proprio colore. A parità vince chi ha più monete.
  * @typedef {object} Score
@@ -106,7 +115,9 @@
 
 /* ---------------- azioni (quello che un giocatore può fare) ---------------- */
 
-/** @typedef {{ type: 'orient', turn: Turn }} OrientAction */
+/** Scelta della direzione. Al primissimo turno della partita il giocatore sceglie liberamente fra le 4 (dir),
+ * poi sempre e solo dritto/sinistra/destra (turn).
+ * @typedef {{ type: 'orient', turn: Turn } | { type: 'orient', dir: Direction }} OrientAction */
 /** @typedef {{ type: 'roll' }} RollAction */
 /** @typedef {{ type: 'pay' }} PayAction  conferma del pedaggio (anche 0), così tutti vedono chi paga chi */
 /** @typedef {{ type: 'place', cells: [Cell, Cell] }} PlaceAction */

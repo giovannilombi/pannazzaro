@@ -50,8 +50,10 @@ body { margin: 0; color: var(--ink); background: var(--tufo); font: 16px/1.4 var
 /* ---------- giocatori ---------- */
 .side h2 { font: 800 20px var(--display); margin: 0 0 8px; }
 .players { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.player { display: grid; grid-template-columns: 18px auto 1fr auto auto; align-items: center; gap: 8px; padding: 8px 10px; background: var(--paper); border-radius: 8px; box-shadow: var(--shadow); border-left: 6px solid var(--rug); }
+.player { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 8px; padding: 8px 10px; background: var(--paper); border-radius: 8px; box-shadow: var(--shadow); border-left: 6px solid var(--rug); }
 .player.now { outline: 3px solid var(--ink); }
+.player .swatches { display: flex; gap: 2px; }
+.cell.rug.neutral { filter: grayscale(.85) brightness(1.1); }
 .player .swatch { position: relative; width: 18px; height: 18px; border-radius: 3px; background: var(--rug); overflow: hidden; }
 .player .swatch::after { content: ''; position: absolute; inset: 0; opacity: .4; }
 .player .stat { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }

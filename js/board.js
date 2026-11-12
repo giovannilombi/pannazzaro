@@ -37,13 +37,14 @@ export function renderBoard(el, state) {
       let style = '', label = `Casella ${x + 1},${y + 1}`;
       if (c) {
         const p = players[c.owner];
-        cls.push('rug', `rug-${p.color}`);
+        cls.push('rug', `rug-${c.color}`);
+        if (p.out) cls.push('neutral');
         if (seam([x, y - 1])) cls.push('sn');
         if (seam([x + 1, y])) cls.push('se');
         if (seam([x, y + 1])) cls.push('ss');
         if (seam([x - 1, y])) cls.push('sw');
-        style = ` style="--rug:${COLORS[p.color].hex}"`;
-        label += `, tappeto di ${p.name}`;
+        style = ` style="--rug:${COLORS[c.color].hex}"`;
+        label += p.out ? `, tappeto neutro (era di ${p.name})` : `, tappeto di ${p.name}`;
       }
       html += `<div role="gridcell" class="${cls.join(' ')}" data-x="${x}" data-y="${y}"${style} aria-label="${label}"></div>`;
     }
