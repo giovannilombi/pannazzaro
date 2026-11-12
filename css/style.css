@@ -447,6 +447,7 @@ form.inline .btn { min-height: 46px; }
 .secs input:checked + span { border-color: var(--ink); background: var(--ink); color: var(--glaze); }
 .secs input:focus-visible + span { outline: 3px solid var(--ochre); outline-offset: 2px; }
 .secs label:hover span { border-color: var(--ink); }
+.secs.two { margin: 14px 0 0; }
 .gamelist ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .gamelist li { display: flex; align-items: center; gap: 6px; }
 .gl { flex: 1; min-width: 0; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--glaze-3); background: var(--card); text-align: left; }

@@ -103,3 +103,6 @@ cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # d
   e ruota con la lanterna, nella C è un adesivo con un triangolo che indica la direzione. Pavimento spento e tappeti con contorno
   netto per non confonderli; ogni colore ha un disegno suo. Ogni casella mostra metà del disegno del tappeto (`rugHalf` in `board.js`).
   Accanto a ogni giocatore c'è il totale dal vivo (monete + caselle in vista).
+- **2026-11-13** — **Partita veloce in due** (opzione `oneColor`, sul dispositivo e online): un colore a testa (pomodoro e limone)
+  e 15 tappeti ciascuno (`ONE_COLOR_RUGS`). 15 scelto con 600 partite simulate per caso, dettagli in `docs/REGOLE.md`.
+  Con 3-4 giocatori l'opzione si ignora. Colori dei posti: `seatColors(n, i, options)` in `rules.js`, usato da interfaccia e server.

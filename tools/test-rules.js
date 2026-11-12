@@ -142,6 +142,28 @@ ok(pv.rng === 0 && pv.players.every(p => p.pile.slice(1).every(c => c === null))
   ok(t4, 'a partita finita non si abbandona');
 }
 
+// partita veloce in due: un colore a testa
+{
+  const q = createGame({ players: [{}, {}], seed: 3, options: { oneColor: true } });
+  ok(q.players.every(p => p.colors.length === 1 && p.pile.length === 15 && p.pile.every(c => c === p.colors[0])) && q.players[0].colors[0] !== q.players[1].colors[0],
+    'partita veloce: un colore e 15 tappeti a testa');
+  const q4 = createGame({ players: [{}, {}, {}, {}], options: { oneColor: true } });
+  ok(q4.players.every(p => p.pile.length === 12), 'con 4 giocatori la partita veloce non cambia niente');
+  const c2 = createGame({ players: [{}, {}], seed: 1 }), two = c2.players[1].colors;
+  c2.board[3][1] = c2.board[3][2] = { rug: 1, owner: 1, color: two[0] };
+  c2.board[3][3] = c2.board[3][4] = { rug: 2, owner: 1, color: two[1] };
+  c2.peppo.pos = { x: 2, y: 3 };
+  ok(tollFor(c2).amount === 2, 'in due, i due colori dello stesso giocatore non si sommano nel pedaggio');
+  const o2 = createGame({ players: [{}, {}], seed: 1, options: { oneColor: true } }), one = o2.players[1].colors[0];
+  o2.board[3][1] = o2.board[3][2] = { rug: 1, owner: 1, color: one };
+  o2.board[3][3] = o2.board[3][4] = { rug: 2, owner: 1, color: one };
+  o2.peppo.pos = { x: 2, y: 3 };
+  ok(tollFor(o2).amount === 4, 'con un colore a testa i tappeti attaccati fanno una zona sola');
+  let allQ = true;
+  for (let seed = 1; seed <= 60; seed++) { let g = createGame({ players: [{}, {}], seed, options: { oneColor: true } }); for (let k = 0; k < 100 && g.turn.phase !== 'over'; k++) g = autoTurn(g); if (g.turn.phase !== 'over') allQ = false; }
+  ok(allQ, '60 partite veloci arrivano alla fine');
+}
+
 // tempo scaduto: Peppo gioca da solo
 {
   let st = createGame({ players: [{}, {}, {}], seed: 21 });

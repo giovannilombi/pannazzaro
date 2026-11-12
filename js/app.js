@@ -4,7 +4,7 @@
 // arrivano dagli aggiornamenti (online.js) e si rivedono animate (applyRemote).
 // Comandi: vedi helpHtml() più sotto (stesso testo della finestra "Come si gioca").
 import {
-  createGame, applyAction, RuleError, walk, legalPlacements, zoneAt, turnDir, COLORS, COLOR_ORDER, DIRS, STEP, inside, sameCell,
+  createGame, applyAction, RuleError, walk, legalPlacements, zoneAt, turnDir, COLORS, COLOR_ORDER, seatColors, ONE_COLOR_RUGS, DIRS, STEP, inside, sameCell,
 } from './rules.js';
 import { createBoard, arcId, DIR_NAME } from './board.js';
 import * as acc from './account.js';
@@ -648,8 +648,9 @@ function setupModal(firstTime = false) {
     n: prev?.n || 4,
     players: prev?.players || DEFAULT_NAMES.map((name, i) => ({ name, avatar: AVATARS[i] })),
     rotateAtEnd: !!prev?.rotateAtEnd,
+    oneColor: !!prev?.oneColor,
   };
-  const colorsFor = (n, i) => n === 2 ? COLOR_ORDER.slice(i * 2, i * 2 + 2) : [COLOR_ORDER[i]];
+  const colorsFor = (n, i) => seatColors(n, i, { oneColor: st.oneColor });
   const draw = () => {
     openModal(`
       <h2 id="modalTitle">${firstTime ? 'Benvenuti nel chiostro' : 'Nuova partita'}</h2>
@@ -670,7 +671,11 @@ function setupModal(firstTime = false) {
               <span class="seat-rugs">${colorsFor(st.n, i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
           }).join('')}
         </ol>
-        <p class="hint">${st.n === 2 ? 'In due ognuno ha due colori: 12 tappeti per colore, pescati a caso.' : `Ognuno ha 30 monete e ${st.n === 3 ? 15 : 12} tappeti.`} Chi comincia lo decide la sorte.</p>
+        ${st.n === 2 ? `<fieldset class="secs two"><legend>In due</legend>
+          <label><input type="radio" name="oneColor" value="0" ${st.oneColor ? '' : 'checked'}><span>Partita classica: due colori a testa, 24 tappeti</span></label>
+          <label><input type="radio" name="oneColor" value="1" ${st.oneColor ? 'checked' : ''}><span>Partita veloce: un colore a testa, 15 tappeti</span></label>
+        </fieldset>` : ''}
+        <p class="hint">${st.n === 2 ? (st.oneColor ? `Ognuno ha 30 monete e ${ONE_COLOR_RUGS} tappeti di un solo colore: i tuoi tappeti attaccati fanno una zona unica. È più corta: circa 30 turni invece di 48.` : 'Ognuno ha due colori, 12 tappeti per colore pescati a caso. I due colori fanno zone separate per il pedaggio, ma a fine partita contano tutti e due.') : `Ognuno ha 30 monete e ${st.n === 3 ? 15 : 12} tappeti.`} Chi comincia lo decide la sorte.</p>
         <label class="check"><input type="checkbox" name="rotateAtEnd" ${st.rotateAtEnd ? 'checked' : ''}> <span><b>Variante:</b> Peppo si gira a fine turno, così decidi tu la direzione per chi gioca dopo.</span></label>
         <div class="row end">
           ${firstTime || !G ? '<button type="button" class="btn ghost" id="setupHelp">Come si gioca</button>' : '<button type="button" class="btn ghost" data-close>Annulla</button>'}
@@ -678,8 +683,9 @@ function setupModal(firstTime = false) {
         </div>
       </form>`, 'setup');
     const f = /** @type {HTMLFormElement} */ ($('#setup'));
-    const grab = () => { for (let i = 0; i < st.n; i++) { const v = f.elements[`name${i}`].value.trim(); st.players[i] = { ...(st.players[i] || {}), name: v || DEFAULT_NAMES[i], avatar: st.players[i]?.avatar || AVATARS[i] }; } st.rotateAtEnd = f.elements.rotateAtEnd.checked; };
+    const grab = () => { for (let i = 0; i < st.n; i++) { const v = f.elements[`name${i}`].value.trim(); st.players[i] = { ...(st.players[i] || {}), name: v || DEFAULT_NAMES[i], avatar: st.players[i]?.avatar || AVATARS[i] }; } st.rotateAtEnd = f.elements.rotateAtEnd.checked; if (f.elements.oneColor) st.oneColor = f.elements.oneColor.value === '1'; };
     f.querySelectorAll('input[name=n]').forEach(r => r.addEventListener('change', () => { grab(); st.n = +r.value; draw(); }));
+    f.querySelectorAll('input[name=oneColor]').forEach(r => r.addEventListener('change', () => { grab(); draw(); }));
     f.querySelectorAll('[data-av]').forEach(b => b.addEventListener('click', () => {
       grab();
       const i = +b.dataset.av, used = st.players.slice(0, st.n).map(p => p.avatar);
@@ -697,7 +703,7 @@ function setupModal(firstTime = false) {
       const k = Math.floor(Math.random() * st.n); // chi comincia: a caso, poi in ordine
       const order = [...seats.slice(k), ...seats.slice(0, k)];
       closeModal();
-      start(createGame({ players: order, options: { rotateAtEnd: st.rotateAtEnd } }));
+      start(createGame({ players: order, options: { rotateAtEnd: st.rotateAtEnd, oneColor: st.n === 2 && st.oneColor } }));
       msg(`Comincia <b>${esc(order[0].name)}</b>, scelto dalla sorte.`);
     });
   };

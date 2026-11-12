@@ -1,7 +1,7 @@
 // Server di Pannazzaro (Cloudflare Worker + database D1).
 // Account (soprannome + PIN + codice segreto) e squadre: stesse regole e stesso codice di Twindoku.
 // Partite online: il server tiene lo stato completo e applica le mosse con le stesse regole del browser (js/rules.js).
-import { createGame, applyAction, resign, autoTurn, publicView, RuleError, COLOR_ORDER, COLORS_BY_PLAYERS } from '../../js/rules.js';
+import { createGame, applyAction, resign, autoTurn, publicView, RuleError, seatColors } from '../../js/rules.js';
 
 const AVATARS = ['🦊', '🐙', '🦉', '🐢', '🐱', '🐶', '🦁', '🐸', '🐼', '🦄', '🐧', '🐺', '🐯', '🐨', '🦝', '🐝'];
 const now = () => Math.floor(Date.now() / 1000);
@@ -395,7 +395,7 @@ const routes = {
     const p = await auth(env, req);
     const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM games g JOIN game_seats s ON s.game_id = g.id WHERE s.player_id = ? AND g.status IN ('lobby', 'play')").bind(p.id).first();
     if (open.n >= MAX_OPEN) throw new Oops('Hai già troppe partite aperte: finiscine o abbandonane qualcuna.', 429);
-    const options = { rotateAtEnd: !!body.rotateAtEnd, turnSecs: TURN_SECS.includes(+body.turnSecs) ? +body.turnSecs : DEFAULT_SECS };
+    const options = { rotateAtEnd: !!body.rotateAtEnd, oneColor: !!body.oneColor, turnSecs: TURN_SECS.includes(+body.turnSecs) ? +body.turnSecs : DEFAULT_SECS };
     let g = null;
     for (let i = 0; i < 6 && !g; i++) {
       try {
@@ -427,10 +427,11 @@ const routes = {
     if (g.host_id !== p.id) throw new Oops('Solo chi ha creato la partita può farla cominciare.', 403);
     if (g.seats.length < 2) throw new Oops('Servono almeno 2 giocatori.');
     // i colori seguono l'ordine di arrivo (come si vedono in sala d'attesa); poi si ruota l'ordine di gioco
-    const n = g.seats.length, per = COLORS_BY_PLAYERS[n];
-    const seats = g.seats.map((s, i) => ({ accountId: s.id, name: s.name, avatar: s.avatar, colors: COLOR_ORDER.slice(i * per, i * per + per) }));
+    // un colore a testa vale solo in due: con 3-4 giocatori l'opzione si ignora
+    const n = g.seats.length, opts = { ...g.options, oneColor: n === 2 && !!g.options.oneColor };
+    const seats = g.seats.map((s, i) => ({ accountId: s.id, name: s.name, avatar: s.avatar, colors: seatColors(n, i, opts) }));
     const k = rnd(n), order = [...seats.slice(k), ...seats.slice(0, k)];
-    g.state = createGame({ players: order, mode: 'online', seed: crypto.getRandomValues(new Uint32Array(1))[0], options: g.options });
+    g.state = createGame({ players: order, mode: 'online', seed: crypto.getRandomValues(new Uint32Array(1))[0], options: opts });
     g.state.id = g.code;
     g.state.clock = { secs: g.options.turnSecs || DEFAULT_SECS, deadline: 0, strikes: order.map(() => 0) };
     restartClock(g.state);

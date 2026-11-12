@@ -1,7 +1,7 @@
 // Partite online: elenco delle mie partite, creazione, sala d'attesa (codice e link d'invito) e aggiornamenti dal server.
 // Il server applica le mosse con js/rules.js; qui si chiede ogni 2 secondi se è cambiato qualcosa (?v=versione).
 import * as acc from './account.js';
-import { COLORS, COLOR_ORDER } from './rules.js';
+import { COLORS, seatColors, ONE_COLOR_RUGS } from './rules.js';
 
 const $ = s => /** @type {HTMLElement} */ (document.querySelector(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -68,6 +68,7 @@ export function initOnline(ctx) {
             ${TIMES.map(([v, l]) => `<label><input type="radio" name="onSecs" value="${v}"${v === lastSecs() ? ' checked' : ''}><span>${l}</span></label>`).join('')}
           </fieldset>
           <p class="hint">Allo scadere Peppo gioca da solo il turno di chi non ha mosso; chi salta tre turni di fila esce dal gioco.</p>
+          <label class="check"><input type="checkbox" id="onOne"> <span><b>Se siete in due, partita veloce:</b> un colore a testa e ${ONE_COLOR_RUGS} tappeti.</span></label>
           <label class="check"><input type="checkbox" id="onVar"> <span><b>Variante:</b> Peppo si gira a fine turno.</span></label>
           <button type="button" class="btn primary" data-on="new">Crea la partita</button>
         </section>
@@ -133,7 +134,7 @@ export function initOnline(ctx) {
   }
   function drawLobby(r) {
     const g = r.game, n = g.seats.length;
-    const colorsFor = i => (n === 2 ? COLOR_ORDER.slice(i * 2, i * 2 + 2) : [COLOR_ORDER[i]]);
+    const colorsFor = i => seatColors(n, i, g.options);
     const host = g.seats.find(s => s.host);
     openModal(`<div class="lobby">
       <h2 id="modalTitle">Sala d'attesa</h2>
@@ -155,7 +156,7 @@ export function initOnline(ctx) {
             <span class="seat-rugs">${colorsFor(i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
         }).join('')}
       </ol>
-      <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
+      <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${g.options.oneColor ? `<b>Se siete in due:</b> partita veloce, un colore a testa e ${ONE_COLOR_RUGS} tappeti. ` : ''}${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
       <div class="row end">
         <button type="button" class="btn ghost" data-on="leave" data-code="${g.code}">${g.host ? 'Chiudi la sala' : 'Esci dalla sala'}</button>
         <button type="button" class="btn ghost" data-on="home">Le mie partite</button>
@@ -176,7 +177,7 @@ export function initOnline(ctx) {
     if (k === 'new') return busy(async () => {
       const secs = +(/** @type {HTMLInputElement} */ (modal.querySelector('input[name="onSecs"]:checked'))?.value || 86400);
       try { localStorage.setItem(LAST_SECS, String(secs)); } catch (x) { /* niente */ }
-      lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked, turnSecs: secs }));
+      lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked, oneColor: /** @type {HTMLInputElement} */ ($('#onOne')).checked, turnSecs: secs }));
     });
     if (k === 'start') return busy(async () => { const r = await acc.gameStart(code); stop(); ctx.enter(r); });
     if (k === 'leave') {

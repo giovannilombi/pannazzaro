@@ -13,7 +13,15 @@ export const START_COINS = 30;
 export const RUGS_BY_PLAYERS = Object.freeze({ 2: 24, 3: 15, 4: 12 });
 export const COLORS_BY_PLAYERS = Object.freeze({ 2: 2, 3: 1, 4: 1 });
 /** @type {import('./types.js').RuleOptions} */
-export const DEFAULT_OPTIONS = Object.freeze({ coverOwn: false, rotateAtEnd: false });
+export const DEFAULT_OPTIONS = Object.freeze({ coverOwn: false, rotateAtEnd: false, oneColor: false });
+/** Partita veloce in due (oneColor): un colore a testa e questi tappeti ciascuno. */
+export const ONE_COLOR_RUGS = 15;
+/** Quanti colori ha ciascuno: in due di solito 2, con la partita veloce 1. */
+export const colorsPer = (n, options = {}) => (n === 2 && options.oneColor ? 1 : COLORS_BY_PLAYERS[n]);
+/** Colori del giocatore i (in ordine di arrivo). In due con un colore a testa: pomodoro e limone, i più diversi. */
+export const seatColors = (n, i, options = {}) => (n === 2 ? (options.oneColor ? [COLOR_ORDER[i * 2]] : COLOR_ORDER.slice(i * 2, i * 2 + 2)) : [COLOR_ORDER[i]]);
+/** Tappeti a testa. */
+export const rugsEach = (n, options = {}) => (n === 2 && options.oneColor ? ONE_COLOR_RUGS : RUGS_BY_PLAYERS[n]);
 export const DIE = Object.freeze([1, 2, 2, 3, 3, 4]);
 
 /** @type {Record<PlayerColor, { name: string, hex: string }>} */
@@ -62,12 +70,12 @@ function shuffle(arr, rng) {
 export function createGame({ players, mode = 'local', seed = (Math.random() * 2 ** 32) >>> 0, options = {} }) {
   const n = Array.isArray(players) ? players.length : 0;
   if (n < 2 || n > 4) throw new Error('Servono da 2 a 4 giocatori.');
-  let rng = seed >>> 0, nextColor = 0;
-  const perColor = RUGS_BY_PLAYERS[n] / COLORS_BY_PLAYERS[n];
+  let rng = seed >>> 0;
+  const opts = { ...DEFAULT_OPTIONS, ...options };
+  const k = colorsPer(n, opts), perColor = k === 1 && n === 2 ? ONE_COLOR_RUGS : RUGS_BY_PLAYERS[n] / k;
   const list = players.map((p, i) => {
     /** @type {PlayerColor[]} */
-    const colors = p.colors && p.colors.length === COLORS_BY_PLAYERS[n] ? [...p.colors] : COLOR_ORDER.slice(nextColor, nextColor + COLORS_BY_PLAYERS[n]);
-    nextColor += COLORS_BY_PLAYERS[n];
+    const colors = p.colors && p.colors.length === k ? [...p.colors] : seatColors(n, i, opts);
     const pile = colors.flatMap(c => Array(perColor).fill(c));
     if (colors.length > 1) rng = shuffle(pile, rng);
     return { accountId: p.accountId ?? null, name: p.name || `Giocatore ${i + 1}`, avatar: p.avatar || '🙂', colors, coins: START_COINS, pile, out: false };
@@ -77,7 +85,7 @@ export function createGame({ players, mode = 'local', seed = (Math.random() * 2 
     id: null,
     mode,
     rng,
-    options: { ...DEFAULT_OPTIONS, ...options },
+    options: opts,
     board: Array.from({ length: SIZE }, () => Array(SIZE).fill(null)),
     rugs: [],
     peppo: { pos: { ...CENTER }, dir: 'N' },

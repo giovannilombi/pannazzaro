@@ -111,6 +111,7 @@
  * @typedef {object} RuleOptions
  * @property {boolean} coverOwn     true = si può coprire in una mossa un proprio tappeto tutto visibile. Default false (vietato su tutti)
  * @property {boolean} rotateAtEnd  variante ufficiale: si gira Peppo a fine turno invece che all'inizio. Default false
+ * @property {boolean} [oneColor]  solo in 2: partita veloce, un colore a testa e ONE_COLOR_RUGS tappeti ciascuno. Default false
  * @property {number} [turnSecs]    solo online: secondi per turno (30, 60, 90, 120, 300; 86400 = senza fretta, un giorno) */
 
 /** Punteggio finale: monete + caselle visibili del proprio colore. A parità vince chi ha più monete.
