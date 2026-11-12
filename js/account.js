@@ -6,7 +6,8 @@ export const API = (() => {
   try { const o = localStorage.getItem('pz:api'); if (o) return o; } catch (e) { /* ok */ }
   return 'https://pannazzaro-api.giovanni-lombi.workers.dev';
 })();
-export const AVATARS = ['🕵️', '🦊', '🐱', '🦉', '🐶', '🐼', '🦁', '🐸', '🐙', '🦄', '🐧', '🐢', '🐺', '🐯', '🐨', '🦝'];
+// stessa lista del server (worker/src/index.js)
+export const AVATARS = ['🦊', '🐙', '🦉', '🐢', '🐱', '🐶', '🦁', '🐸', '🐼', '🦄', '🐧', '🐺', '🐯', '🐨', '🦝', '🐝'];
 
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
 const set = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage pieno o bloccato */ } };
@@ -89,6 +90,17 @@ export const teamLeave = () => authed('POST', '/api/team/leave').then(applyMe);
 export const teamNewInvite = () => authed('POST', '/api/team/invite').then(applyMe);
 export const teamResetPin = playerId => authed('POST', '/api/team/reset-pin', { playerId });
 export const teamsBoard = () => { const a = active(); return api('GET', '/api/teams', null, a && a.token); };
+
+/* ---------------- partite online ---------------- */
+// Ogni risposta è { game: { code, status, version, host, you, seats, options }, state: GameState pubblico | null }.
+const C = c => encodeURIComponent(String(c || '').toUpperCase());
+export const gameNew = options => authed('POST', '/api/game/new', options || {});
+export const gameJoin = code => authed('POST', '/api/game/join', { code });
+export const gameStart = code => authed('POST', '/api/game/start', { code });
+export const gameGet = (code, v) => authed('GET', `/api/game?code=${C(code)}${v != null ? '&v=' + v : ''}`);
+export const gameAct = (code, v, action) => authed('POST', '/api/game/act', { code, v, action });
+export const gameLeave = code => authed('POST', '/api/game/leave', { code });
+export const gamesList = () => authed('GET', '/api/games');
 
 /* ---------------- inviti ---------------- */
 export const pendingInvite = () => get('pz:invite', null);

@@ -1,10 +1,15 @@
-// Pannazzaro — interfaccia di gioco (partita sullo stesso dispositivo, "passa e gioca").
+// Pannazzaro — interfaccia di gioco: partita sullo stesso dispositivo ("passa e gioca") oppure online.
 // Tutte le regole stanno in rules.js: qui si mostra lo stato, si raccolgono le scelte e si chiamano le azioni.
+// Online le azioni vanno al server (account.js → worker), che risponde con il nuovo stato; le mosse degli altri
+// arrivano dagli aggiornamenti (online.js) e si rivedono animate (applyRemote).
 // Comandi: vedi helpHtml() più sotto (stesso testo della finestra "Come si gioca").
 import {
   createGame, applyAction, RuleError, walk, legalPlacements, zoneAt, turnDir, COLORS, COLOR_ORDER, DIRS, STEP, inside, sameCell,
 } from './rules.js';
 import { createBoard, arcId, DIR_NAME } from './board.js';
+import * as acc from './account.js';
+import { initProfile } from './profile.js';
+import { initOnline } from './online.js';
 
 const $ = s => /** @type {HTMLElement} */ (document.querySelector(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -17,13 +22,17 @@ const store = {
 };
 const AVATARS = ['🦊', '🐙', '🦉', '🐢', '🐱', '🐶', '🦁', '🐸', '🐼', '🦄', '🐧', '🐺', '🐯', '🐨', '🦝', '🐝'];
 const DEFAULT_NAMES = ['Nunzia', 'Gennaro', 'Assunta', 'Ciro'];
-const SAVE = 'pz:local:game', SETUP = 'pz:local:setup';
+const SAVE = 'pz:local:game', SETUP = 'pz:local:setup', ONLINE = 'pz:online:code';
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const coins = n => plural(n, 'moneta', 'monete');
 const TURN_LABEL = { left: 'Sinistra', straight: 'Dritto', right: 'Destra' };
 
 /** @type {import('./types.js').GameState | null} */
 let G = null;
+/** Partita online in corso (null = partita sul dispositivo). you = il mio posto nello stato (-1 = spettatore).
+ * @type {{ code: string, version: number, you: number, status: string } | null} */
+let NET = null;
+const myTurn = () => !NET || (G && G.turn.current === NET.you);
 const ui = {
   busy: false,          // animazione in corso: niente comandi
   sel: /** @type {any} */ (null), // orient: { turn } o { dir }; place: indice in legal
@@ -36,15 +45,124 @@ const B = createBoard($('#board'));
 /* =====================================================================
    Avvio e salvataggi
    ===================================================================== */
-function save() { if (G) store.set(SAVE, G); }
+function save() { if (G && !NET) store.set(SAVE, G); }
+/** Partita sul dispositivo. */
 function start(state) {
+  leaveOnline();
   G = state; ui.sel = null; ui.face = 0;
   save(); B.render(G); refresh(true);
 }
-function boot() {
+function loadLocal() {
   const saved = store.get(SAVE, null);
-  if (saved && saved.v === 1 && saved.board && saved.turn) { G = saved; B.render(G); refresh(true); if (G.turn.phase === 'over') showEnd(); }
-  else setupModal(true);
+  if (saved && saved.v === 1 && saved.board && saved.turn) { G = saved; B.render(G); refresh(true); if (G.turn.phase === 'over') showEnd(); return true; }
+  return false;
+}
+function boot() {
+  P.start();
+  // link d'invito: #partita-CODICE (partita online) o #squadra-CODICE (squadra)
+  const h = location.hash.match(/^#(partita|squadra)-([A-Za-z0-9]{4,8})$/);
+  if (h) history.replaceState(null, '', location.pathname + location.search);
+  const resume = store.get(ONLINE, null);
+  if (!loadLocal() && !h && !resume) setupModal(true);
+  if (h && h[1] === 'partita') return ON.open(h[2]);
+  if (h && h[1] === 'squadra') { acc.setPendingInvite(h[2].toUpperCase()); return P.handleInvite(); }
+  if (resume && acc.active()?.token) resumeOnline(resume);
+}
+async function resumeOnline(code) {
+  try { enterOnline(await acc.gameGet(code)); }
+  catch (e) { store.del(ONLINE); if (!G) setupModal(true); }
+}
+
+/* =====================================================================
+   Partita online
+   ===================================================================== */
+function enterOnline(r) {
+  if (!r || !r.state) return ON.open(r?.game?.code);
+  closeModal();
+  NET = { code: r.game.code, version: r.game.version, you: r.game.you, status: r.game.status };
+  G = r.state; ui.sel = null; ui.face = 0; ui.busy = false;
+  store.set(ONLINE, NET.code);
+  B.render(G); refresh(true);
+  ON.watch(NET.code, NET.version, applyRemote);
+  if (G.turn.phase === 'over') showEnd();
+}
+function leaveOnline() {
+  if (!NET) return;
+  ON.stop(); NET = null; store.del(ONLINE);
+  document.title = 'Pannazzaro';
+}
+function setNet(r) {
+  NET.version = r.game.version; NET.status = r.game.status; NET.you = r.game.you;
+  ON.setVersion(NET.version);
+}
+/** Arriva un nuovo stato dal server: rivedo le mosse degli altri (direzione, cammino di Peppo, tappeti) e poi aggiorno.
+ * Se la pagina è occupata (animazione o mossa in corso) non faccio niente: la versione non avanza e il prossimo
+ * aggiornamento lo ripropone (vedi online.js). */
+async function applyRemote(r, e) {
+  if (!NET) return;
+  if (!r) { toast(`<b>${esc(e.message)}</b>`, 6000); leaveOnline(); if (!loadLocal()) setupModal(); return; }
+  if (r.game.code !== NET.code || r.game.version <= NET.version) { ON.setVersion(NET.version); return; }
+  if (ui.busy) return;
+  ui.busy = true;
+  const old = G, events = r.state.log.slice(old.log.length), who = old.turn.current;
+  try {
+    if (events.length && events.length <= 12 && !reduced()) await replay(old, r.state, events);
+  } catch (x) { console.error(x); }
+  const tolls = events.filter(ev => ev.action.type === 'pay' && ev.toll);
+  G = r.state; setNet(r); ui.sel = null;
+  ui.busy = false;
+  B.render(G); refresh(G.turn.current !== who || events.length > 0);
+  tolls.forEach(ev => { bump(ev.toll.from, -ev.toll.paid); bump(ev.toll.to, +ev.toll.paid); });
+  if (G.turn.phase === 'over') showEnd();
+}
+/** Animazione delle mosse altrui, a partire dallo stato vecchio. */
+async function replay(old, next, events) {
+  const tmp = JSON.parse(JSON.stringify(old));
+  let pk = { pos: old.peppo.pos, dir: old.peppo.dir };
+  B.clearFx(); B.marks([]); B.arrows([]);
+  for (const ev of events) {
+    const a = ev.action;
+    if (a.type === 'orient') { pk = { pos: pk.pos, dir: 'dir' in a ? a.dir : turnDir(pk.dir, a.turn) }; B.setPeppo(pk.pos, pk.dir); await wait(420); }
+    else if (a.type === 'roll') {
+      msg(`${esc(next.players[ev.by].name)} lancia il dado: <b>${ev.roll}</b>.`);
+      const path = walk(pk, ev.roll);
+      await B.movePeppo(pk, path);
+      const l = path[path.length - 1]; pk = { pos: l.pos, dir: l.dir };
+      await wait(250);
+    } else if (a.type === 'place' && a.cells) {
+      const rug = next.rugs[tmp.rugs.length];
+      if (!rug) continue;
+      tmp.rugs.push(rug); rug.cells.forEach(c => (tmp.board[c.y][c.x] = { rug: rug.id, owner: rug.owner, color: rug.color }));
+      tmp.peppo = pk; B.render(tmp);
+      rug.cells.forEach(c => $(`#board .cell[data-x="${c.x}"][data-y="${c.y}"]`)?.classList.add('just'));
+      await wait(500);
+    }
+  }
+}
+/** Dopo un rifiuto per tabellone vecchio: riprendo lo stato dal server. */
+async function resync() {
+  if (!NET) return;
+  try { const r = await acc.gameGet(NET.code); if (r.game.version > NET.version) await applyRemote(r); else { G = r.state; setNet(r); B.render(G); refresh(); } } catch (e) { /* riprova l'aggiornamento automatico */ }
+}
+function renderNet() {
+  const bar = $('#netbar');
+  if (!NET) { bar.hidden = true; return; }
+  const me = G.players[NET.you];
+  bar.hidden = false;
+  bar.innerHTML = `<span class="net-dot" id="netDot" title="Collegato"></span>
+    <span class="net-txt">Partita online <b>${NET.code}</b>${me ? '' : ' <small>(guardi)</small>'}</span>
+    <button type="button" class="btn ghost sm" id="netList">Le mie partite</button>
+    ${me && !me.out && G.turn.phase !== 'over' ? '<button type="button" class="btn ghost sm" id="netResign">Abbandona</button>' : ''}`;
+  $('#netList').addEventListener('click', () => ON.home());
+  $('#netResign')?.addEventListener('click', () => {
+    openModal(`<h2 id="modalTitle">Abbandonare la partita?</h2><p>Esci dal gioco: i tuoi tappeti restano sul tabellone ma non fanno più pagare, e non prendi punti. Gli altri continuano senza di te.</p>
+      <div class="row end"><button type="button" class="btn ghost" data-close data-focus>Continua a giocare</button><button type="button" class="btn warn" id="resignBtn">Abbandona</button></div>`);
+    $('#resignBtn').addEventListener('click', async () => {
+      closeModal();
+      ui.busy = true; const ok = await act({ type: 'resign' }); ui.busy = false;
+      if (ok) { B.render(G); refresh(true); if (G.turn.phase === 'over') showEnd(); }
+    });
+  });
 }
 
 /* =====================================================================
@@ -54,6 +172,7 @@ const cur = () => G.players[G.turn.current];
 const isFirstMove = () => G.log.length === 0;
 
 function refresh(newTurn = false) {
+  renderNet();
   renderPlayers();
   renderLog();
   renderTurn(newTurn);
@@ -67,7 +186,7 @@ function renderPlayers() {
     const col = COLORS[p.colors[0]];
     return `<li class="player${now ? ' now' : ''}${p.out ? ' out' : ''}" data-i="${i}" style="--rug:${col.hex};--rug-dark:${col.dark}">
       <span class="p-av" aria-hidden="true">${p.avatar}</span>
-      <span class="p-name"><b>${esc(p.name)}</b>${p.out ? '<small>fuori dal gioco</small>' : `<small>${p.colors.map(c => `<i class="dot rug-${c}" style="--rug:${COLORS[c].hex}" title="${COLORS[c].name}"></i>`).join('')} ${p.colors.map(c => COLORS[c].name).join(' e ')}</small>`}</span>
+      <span class="p-name"><b>${esc(p.name)}${NET && i === NET.you ? ' <i class="you">tu</i>' : ''}</b>${p.out ? '<small>fuori dal gioco</small>' : `<small>${p.colors.map(c => `<i class="dot rug-${c}" style="--rug:${COLORS[c].hex}" title="${COLORS[c].name}"></i>`).join('')} ${p.colors.map(c => COLORS[c].name).join(' e ')}</small>`}</span>
       <span class="p-stat coins" title="Monete"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4.5"/></svg><b data-coins="${i}">${p.coins}</b><span class="sr"> monete</span></span>
       <span class="p-stat" title="Tappeti in mano"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="1.5"/><path d="M3 8h14M3 12h14"/></svg><b>${p.pile.length}</b><span class="sr"> tappeti in mano</span></span>
       <span class="p-stat" title="Caselle visibili sul tabellone"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6"/><rect x="11" y="3" width="6" height="6"/><rect x="3" y="11" width="6" height="6"/></svg><b>${visible[i]}</b><span class="sr"> caselle visibili</span></span>
@@ -78,6 +197,7 @@ function renderPlayers() {
 function eventText(ev) {
   const who = esc(G.players[ev.by].name), a = ev.action;
   if (ev.skipped) return `${who} non trova posto per il tappeto: lo perde.`;
+  if (a.type === 'resign') return `${who} abbandona la partita.`;
   if (a.type === 'orient') return 'dir' in a ? `${who} fa partire Peppo verso ${DIR_NAME[a.dir]}.` : a.turn === 'straight' ? `${who} tira dritto.` : `${who} gira Peppo a ${a.turn === 'left' ? 'sinistra' : 'destra'}.`;
   if (a.type === 'roll') return `${who} lancia il dado: ${ev.roll}.`;
   if (a.type === 'pay') { const t = ev.toll; return `${who} paga ${coins(t.paid)} a ${esc(G.players[t.to].name)}${t.paid < t.amount ? ' ed esce dal gioco' : ''}.`; }
@@ -96,7 +216,10 @@ function renderTurn(newTurn) {
   turnEl.style.setProperty('--rug-dark', col.dark);
   turnEl.style.setProperty('--rug-light', col.light);
   $('#turnAv').textContent = p.avatar;
-  $('#turnName').textContent = t.phase === 'over' ? 'Partita finita' : `Tocca a ${p.name}`;
+  const mine = NET && myTurn() && t.phase !== 'over';
+  $('#turnName').textContent = t.phase === 'over' ? 'Partita finita' : mine ? 'Tocca a te!' : `Tocca a ${p.name}`;
+  document.title = mine ? '● Tocca a te — Pannazzaro' : 'Pannazzaro';
+  if (mine && newTurn && document.visibilityState === 'hidden') navigator.vibrate?.(120);
   if (newTurn && !reduced()) { turnEl.classList.remove('enter'); void turnEl.offsetWidth; turnEl.classList.add('enter'); }
   const order = ['orient', 'roll', 'pay', 'place'];
   const ph = t.phase === 'orient' && G.options.rotateAtEnd && !isFirstMove() ? 'orient' : t.phase;
@@ -107,13 +230,26 @@ function renderTurn(newTurn) {
   });
   B.clearFx();
   ui.legal = []; ui.anchor = null;
-  if (t.phase === 'orient') orientUI();
+  if (t.phase !== 'over' && !myTurn()) waitUI();
+  else if (t.phase === 'orient') orientUI();
   else if (t.phase === 'roll') rollUI();
   else if (t.phase === 'pay') payUI();
   else if (t.phase === 'place') placeUI();
   else overUI();
 }
 const msg = (html, kind = '') => { const m = $('#msg'); m.innerHTML = html; m.className = 'msg' + (kind ? ' ' + kind : ''); };
+
+/* ---------------- online: turno di un altro ---------------- */
+function waitUI() {
+  const p = cur(), ph = { orient: 'sceglie dove va Peppo', roll: 'sta per lanciare il dado', pay: 'paga il pedaggio', place: 'stende un tappeto' }[G.turn.phase] || '';
+  B.setPeppo(G.peppo.pos, G.peppo.dir);
+  B.marks([]); B.arrows([]);
+  if (G.turn.phase === 'pay' && G.turn.toll) B.tint(G.turn.toll.area, 'zone');
+  const meOut = NET && G.players[NET.you]?.out;
+  $('#act').innerHTML = `<p class="waiting big"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> <span><b>${esc(p.name)}</b> ${ph}.</span></p>
+    <p class="tip">${meOut ? 'Sei fuori dal gioco: puoi guardare la partita fino alla fine.' : 'Il tabellone si aggiorna da solo e ti mostra le sue mosse. Quando tocca a te, il titolo della pagina cambia.'}</p>`;
+  msg('');
+}
 
 /* ---------------- 1. direzione (+ lancio) ---------------- */
 // La direzione scelta si vede subito sul tabellone (Peppo girato + caselle dove può arrivare con 1, 2, 3 o 4).
@@ -173,11 +309,14 @@ function showReach(peppo) {
   }), arcs);
 }
 async function go() {
-  if (ui.busy || !G || G.turn.phase !== 'orient') return;
+  if (ui.busy || !G || G.turn.phase !== 'orient' || !myTurn()) return;
   const o = orientOptions().find(x => x.key === ui.sel);
   if (!o) return;
   const endVariant = G.options.rotateAtEnd && !isFirstMove(); // variante: la rotazione chiude il turno, non si lancia
-  if (!act(/** @type {any} */ (o.action))) return;
+  ui.busy = true;
+  const ok = await act(/** @type {any} */ (o.action));
+  ui.busy = false;
+  if (!ok) return;
   if (!endVariant && G.turn.phase === 'roll') return roll();
   B.render(G);
   refresh(true);
@@ -196,10 +335,10 @@ function rollUI() {
   msg('');
 }
 async function roll() {
-  if (ui.busy || G.turn.phase !== 'roll') return;
+  if (ui.busy || G.turn.phase !== 'roll' || !myTurn()) return;
   const before = G.peppo, who = G.turn.current;
-  if (!act({ type: 'roll' })) return;
   ui.busy = true;
+  if (!(await act({ type: 'roll' }))) { ui.busy = false; return; }
   const face = G.turn.roll;
   B.marks([]); B.arrows([]);
   // dado che rotola
@@ -220,7 +359,10 @@ async function roll() {
   if (G.turn.phase === 'over') return finish();
   refresh(G.turn.current !== who);
   if (G.turn.current !== who) msg(`${esc(G.players[who].name)} non trova posto per il tappeto e lo perde.`, 'bad');
+  flushRemote();
 }
+/** Dopo una mia mossa chiedo subito le novità (le mosse degli altri arrivate nel frattempo). */
+function flushRemote() { if (NET) ON.now(); }
 
 /* ---------------- 3. pedaggio ---------------- */
 function payUI() {
@@ -239,15 +381,19 @@ function payUI() {
   msg('');
 }
 async function pay() {
-  if (ui.busy || G.turn.phase !== 'pay') return;
+  if (ui.busy || G.turn.phase !== 'pay' || !myTurn()) return;
   const t = G.turn.toll, out = t.paid < t.amount, who = G.turn.current;
-  if (!act({ type: 'pay' })) return;
+  ui.busy = true;
+  const ok = await act({ type: 'pay' });
+  ui.busy = false;
+  if (!ok) return;
   renderPlayers();
   bump(t.from, -t.paid); bump(t.to, +t.paid);
   if (out) { B.render(G); msg(`${esc(G.players[t.from].name)} è fuori dal gioco.`, 'bad'); await wait(900); }
   else B.render(G);
   if (G.turn.phase === 'over') return finish();
   refresh(G.turn.current !== who);
+  flushRemote();
 }
 function bump(i, delta) {
   const el = $(`#players [data-i="${i}"] .coins`);
@@ -329,15 +475,19 @@ function cycle(d) {
   showSel();
 }
 async function place() {
-  if (ui.busy || G.turn.phase !== 'place' || ui.sel == null) return;
+  if (ui.busy || G.turn.phase !== 'place' || ui.sel == null || !myTurn()) return;
   const pl = ui.legal[ui.sel];
-  if (!act({ type: 'place', cells: pl })) return;
+  ui.busy = true;
+  const ok = await act({ type: 'place', cells: pl });
+  ui.busy = false;
+  if (!ok) return;
   ui.sel = null;
   B.render(G);
   const els = pl.map(c => $(`#board .cell[data-x="${c.x}"][data-y="${c.y}"]`));
   els.forEach(e => e && e.classList.add('just'));
   if (G.turn.phase === 'over') return finish();
   refresh(true);
+  flushRemote();
 }
 
 /* ---------------- fine ---------------- */
@@ -351,7 +501,20 @@ async function finish() { B.render(G); refresh(); await wait(500); showEnd(); }
 /* =====================================================================
    Azioni
    ===================================================================== */
-function act(action) {
+/** Applica una mossa: sul dispositivo con il motore, online chiedendo al server. @returns {Promise<boolean>} */
+async function act(action) {
+  if (NET) {
+    try {
+      const r = await acc.gameAct(NET.code, NET.version, action);
+      G = r.state; setNet(r);
+      return true;
+    } catch (e) {
+      msg(esc(e.message), 'bad');
+      if (e.status === 409 || e.status === 0) await resync();
+      else if (e.status === 401) P.need(() => resumeOnline(NET.code));
+      return false;
+    }
+  }
   try {
     G = applyAction(G, G.turn.current, action);
     save();
@@ -366,7 +529,7 @@ function act(action) {
    Comandi: tabellone e tastiera
    ===================================================================== */
 B.onCell(q => {
-  if (!G || ui.busy || isModal()) return;
+  if (!G || ui.busy || isModal() || !myTurn()) return;
   const ph = G.turn.phase;
   if (ph === 'orient') {
     const o = orientOptions().find(x => { const n = { x: G.peppo.pos.x + STEP[x.dir].dx, y: G.peppo.pos.y + STEP[x.dir].dy }; return sameCell(n, q); });
@@ -374,7 +537,7 @@ B.onCell(q => {
   } else if (ph === 'place') pickAt(q);
 });
 B.onHover(q => {
-  if (!G || ui.busy || G.turn.phase !== 'place' || ui.sel != null) return;
+  if (!G || ui.busy || G.turn.phase !== 'place' || ui.sel != null || !myTurn()) return;
   // anteprima leggera al passaggio del mouse, finché non si è scelto niente
   if (!q) { B.ghost(null); return; }
   const opts = ui.legal.filter(pl => has(pl, q));
@@ -388,8 +551,8 @@ B.onHover(q => {
 const isModal = () => !$('#overlay').hidden;
 document.addEventListener('keydown', e => {
   if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-  if (isModal()) { if (e.key === 'Escape' && G) closeModal(); return; }
-  if (!G || ui.busy || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (isModal()) { if (e.key === 'Escape' && (G || !$('#setup'))) closeModal(); return; }
+  if (!G || ui.busy || e.metaKey || e.ctrlKey || e.altKey || !myTurn()) return;
   const ph = G.turn.phase, k = e.key;
   const enter = k === 'Enter' || k === ' ';
   if (enter && e.target instanceof HTMLButtonElement && e.target.id !== 'goBtn') return; // lascia lavorare il pulsante a fuoco
@@ -428,8 +591,10 @@ function openModal(html, cls = '') {
 function closeModal() {
   $('#overlay').hidden = true;
   if (lastFocus && lastFocus.focus) lastFocus.focus();
+  // senza partita aperta (es. chiusa la finestra del profilo al primo avvio) si torna alla scelta della partita
+  setTimeout(() => { if (!G && $('#overlay').hidden) setupModal(true); });
 }
-$('#overlay').addEventListener('click', e => { if (e.target === $('#overlay') && G) closeModal(); });
+$('#overlay').addEventListener('click', e => { if (e.target === $('#overlay') && (G || !$('#setup'))) closeModal(); });
 $('#modal').addEventListener('click', e => { if (e.target.closest('[data-close]')) closeModal(); });
 
 /* ---------------- nuova partita ---------------- */
@@ -445,6 +610,10 @@ function setupModal(firstTime = false) {
     openModal(`
       <h2 id="modalTitle">${firstTime ? 'Benvenuti nel chiostro' : 'Nuova partita'}</h2>
       <p class="sub">Peppo o' Pannazzaro gira tra le maioliche con il suo fagotto di stoffe. Stendete i vostri tappeti dove passerà: chi ci finisce sopra paga.</p>
+      <div class="modes" role="group" aria-label="Dove si gioca">
+        <button type="button" class="mode" aria-pressed="true"><b>Su questo dispositivo</b><small>Vi passate il telefono o il computer a turno</small></button>
+        <button type="button" class="mode" aria-pressed="false" id="goOnline"><b>Online con gli amici</b><small>Ognuno dal suo dispositivo, con un codice d'invito</small></button>
+      </div>
       <form id="setup" autocomplete="off">
         <fieldset class="count"><legend>Quanti giocate?</legend>
           ${[2, 3, 4].map(n => `<label><input type="radio" name="n" value="${n}" ${st.n === n ? 'checked' : ''}><span>${n}</span></label>`).join('')}
@@ -460,7 +629,7 @@ function setupModal(firstTime = false) {
         <p class="hint">${st.n === 2 ? 'In due ognuno ha due colori: 12 tappeti per colore, pescati a caso.' : `Ognuno ha 30 monete e ${st.n === 3 ? 15 : 12} tappeti.`} Chi comincia lo decide la sorte.</p>
         <label class="check"><input type="checkbox" name="rotateAtEnd" ${st.rotateAtEnd ? 'checked' : ''}> <span><b>Variante:</b> Peppo si gira a fine turno, così decidi tu la direzione per chi gioca dopo.</span></label>
         <div class="row end">
-          ${firstTime ? '<button type="button" class="btn ghost" id="setupHelp">Come si gioca</button>' : '<button type="button" class="btn ghost" data-close>Annulla</button>'}
+          ${firstTime || !G ? '<button type="button" class="btn ghost" id="setupHelp">Come si gioca</button>' : '<button type="button" class="btn ghost" data-close>Annulla</button>'}
           <button class="btn primary big" data-focus>Si comincia!</button>
         </div>
       </form>`, 'setup');
@@ -476,6 +645,7 @@ function setupModal(firstTime = false) {
       b.textContent = AVATARS[k];
     }));
     $('#setupHelp')?.addEventListener('click', () => helpModal(() => setupModal(true)));
+    $('#goOnline').addEventListener('click', () => ON.home());
     f.addEventListener('submit', e => {
       e.preventDefault(); grab();
       store.set(SETUP, st);
@@ -506,6 +676,8 @@ function helpHtml() {
         <li><b>Stendi un tappeto</b> che tocchi la casella di Peppo (non sotto di lui). Puoi coprire metà di altri tappeti, ma non un tappeto intero in una volta sola.</li>
       </ol>
       <p>La partita finisce quando tutti hanno steso i loro tappeti.</p>
+      <h3>Online</h3>
+      <p>Con un profilo (soprannome e PIN) premi <b>Online</b>: crei una partita e mandi il codice agli amici, oppure scrivi il codice che ti hanno mandato. Quando non tocca a te vedi le mosse degli altri sul tabellone; quando tocca a te, il titolo della pagina diventa «● Tocca a te». A fine partita prendi punti di classifica secondo il posto.</p>
     </section>
     <section>
       <h3>Comandi</h3>
@@ -536,6 +708,8 @@ function showEnd() {
   const res = G.result || [];
   const out = G.players.map((p, i) => ({ p, i })).filter(x => x.p.out);
   const winners = res.filter(r => r.place === 1).map(r => G.players[r.player].name);
+  const n = G.players.length, mine = NET ? res.find(r => r.player === NET.you) : null;
+  const pts = NET && G.rugs.length >= n * 2 ? (mine ? n - mine.place + 1 : 0) : null;
   openModal(`
     <h2 id="modalTitle">${winners.length > 1 ? `Pari merito: ${winners.map(esc).join(' e ')}` : `Vince ${esc(winners[0] || '')}!`}</h2>
     <ol class="podium">
@@ -544,11 +718,21 @@ function showEnd() {
         <span class="calc">${coins(r.coins)} + ${plural(r.cells, 'casella', 'caselle')}</span><span class="tot">${r.total}</span></li>`; }).join('')}
       ${out.map(({ p }) => `<li class="outp"><span class="pos">–</span><span class="p-av">${p.avatar}</span><b>${esc(p.name)}</b><span class="calc">fuori dal gioco</span><span class="tot"></span></li>`).join('')}
     </ol>
+    ${NET && NET.you >= 0 ? `<p class="hint center">${pts == null ? 'Partita troppo corta: questa volta niente punti di classifica.' : `Prendi <b>${pts}</b> ${pts === 1 ? 'punto' : 'punti'} di classifica.`}</p>` : ''}
     <div class="row end">
       <button type="button" class="btn ghost" data-close>Guarda il tabellone</button>
-      <button type="button" class="btn" id="againBtn">Rivincita</button>
-      <button type="button" class="btn primary" id="newGameBtn" data-focus>Nuova partita</button>
+      ${NET
+        ? `<button type="button" class="btn" id="listBtn">Le mie partite</button><button type="button" class="btn primary" id="againOnBtn" data-focus>Nuova partita online</button>`
+        : `<button type="button" class="btn" id="againBtn">Rivincita</button><button type="button" class="btn primary" id="newGameBtn" data-focus>Nuova partita</button>`}
     </div>`, 'end');
+  if (NET) {
+    $('#listBtn').addEventListener('click', () => ON.home());
+    $('#againOnBtn').addEventListener('click', async e => {
+      const b = /** @type {HTMLButtonElement} */ (e.currentTarget); b.disabled = true;
+      try { const r = await acc.gameNew(G.options); ON.open(r.game.code); } catch (x) { toast(`<b>${esc(x.message)}</b>`); b.disabled = false; }
+    });
+    return;
+  }
   $('#againBtn').addEventListener('click', () => {
     const seats = G.players.map(p => ({ name: p.name, avatar: p.avatar, colors: p.colors }));
     const k = 1 % seats.length; // la rivincita la comincia il secondo
@@ -559,12 +743,26 @@ function showEnd() {
 }
 
 $('#helpBtn').addEventListener('click', () => helpModal());
+$('#onlineBtn').addEventListener('click', () => ON.home());
 $('#newBtn').addEventListener('click', () => {
-  if (G && G.turn.phase !== 'over' && G.log.length > 2) {
+  if (G && !NET && G.turn.phase !== 'over' && G.log.length > 2) {
     openModal(`<h2 id="modalTitle">Lasciare questa partita?</h2><p>La partita in corso si perde.</p>
       <div class="row end"><button type="button" class="btn ghost" data-close data-focus>Continua a giocare</button><button type="button" class="btn warn" id="dropBtn">Nuova partita</button></div>`);
     $('#dropBtn').addEventListener('click', () => setupModal());
   } else setupModal();
 });
+
+/* =====================================================================
+   Profili e online
+   ===================================================================== */
+const P = initProfile({ openModal, closeModal, onChange: () => {} });
+const toast = P.toast;
+const ON = initOnline({
+  openModal, closeModal, toast, need: P.need, enter: enterOnline,
+  status: ok => { const d = $('#netDot'); if (d) { d.classList.toggle('off', !ok); d.title = ok ? 'Collegato' : 'Connessione persa: riprovo…'; } },
+});
+
+// solo in locale: stato ispezionabile dalla console (window.__pz)
+if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.__pz = { get G() { return G; }, get NET() { return NET; }, ui };
 
 boot();

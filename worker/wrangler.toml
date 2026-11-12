@@ -8,8 +8,9 @@ name = "pannazzaro-api"
 main = "src/index.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
+preview_urls = false
 
 [[d1_databases]]
 binding = "DB"
 database_name = "pannazzaro"
-database_id = "DA-CREARE"
+database_id = "6c795c49-e9e2-4811-94ef-0b67ece6c273"

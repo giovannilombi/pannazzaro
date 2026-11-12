@@ -121,10 +121,11 @@
 /** @typedef {{ type: 'roll' }} RollAction */
 /** @typedef {{ type: 'pay' }} PayAction  conferma del pedaggio (anche 0), così tutti vedono chi paga chi */
 /** @typedef {{ type: 'place', cells: [Cell, Cell] }} PlaceAction */
+/** @typedef {{ type: 'resign' }} ResignAction  abbandono (solo online, anche fuori turno): vedi resign() in rules.js */
 /** @typedef {OrientAction | RollAction | PayAction | PlaceAction} Action */
 
 /** Voce della cronaca: l'azione, chi l'ha fatta e l'esito (per il dado: la faccia uscita).
  * skipped = nessuna posizione valida per il tappeto, che è stato scartato.
- * @typedef {{ by: PlayerIndex, round: number, action: Action | { type: 'place', cells: null }, roll?: DieFace, toll?: Toll, skipped?: boolean }} GameEvent */
+ * @typedef {{ by: PlayerIndex, round: number, action: Action | ResignAction | { type: 'place', cells: null }, roll?: DieFace, toll?: Toll, skipped?: boolean }} GameEvent */
 
 export {};

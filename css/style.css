@@ -370,6 +370,140 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 .35em; border-radius: 
 /* =====================================================================
    Schermi stretti
    ===================================================================== */
+/* =====================================================================
+   Profili, online, sala d'attesa
+   ===================================================================== */
+.btn.sm { min-height: 32px; padding: 4px 10px; font-size: 14px; border-radius: 8px; }
+.btn.profile { padding-inline: 10px 14px; }
+.btn.profile .av { font-size: 20px; line-height: 1; }
+.btn.profile .lbl { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.profile.guest .av { filter: grayscale(1); opacity: .8; }
+.row.center { justify-content: center; }
+.hint.center { text-align: center; }
+.modal .bigicon { font-size: 44px; text-align: center; margin: 0 0 4px; }
+
+/* campi */
+.fld { display: grid; gap: 4px; margin: 0 0 12px; font-weight: 800; font-size: 14px; }
+.fld input { width: 100%; min-height: 46px; padding: 8px 12px; border-radius: 10px; border: 2px solid var(--glaze-3); background: #fff; font: 700 17px var(--body); color: var(--ink); }
+.fld input:focus { border-color: var(--ink); outline: none; }
+.fld input[type=password] { letter-spacing: .3em; font-size: 20px; }
+.fld2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+form.inline { display: flex; align-items: flex-end; gap: 8px; }
+form.inline .fld { flex: 1; margin: 0; }
+form.inline .btn { min-height: 46px; }
+.codein { text-transform: uppercase; letter-spacing: .25em; font-family: var(--display) !important; font-weight: 400 !important; }
+.note { margin: 0 0 14px; padding: 10px 14px; border-radius: 10px; background: #fff3d6; border-left: 5px solid var(--ochre); }
+.note.ok { background: #e3f3e8; border-left-color: var(--good); }
+.form-err { margin: 6px 0 0; color: var(--bad); font-weight: 700; }
+.code { display: block; margin: 14px auto; width: fit-content; padding: 10px 18px; border-radius: 10px; background: #fff; border: 2px dashed var(--ink); font: 22px var(--display); letter-spacing: .06em; }
+.code.sm { display: inline; margin: 0; padding: 0 6px; font-size: 1em; }
+
+/* scelta del giocatore e degli animali */
+.who { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+.whob { display: grid; justify-items: center; gap: 2px; min-width: 104px; padding: 12px 10px 10px; border-radius: 14px; border: 2px solid var(--glaze-3); background: #fff; }
+.whob:hover, .whob.on { border-color: var(--ink); }
+.whob .av { font-size: 34px; line-height: 1.1; }
+.whob small { color: var(--muted); font-size: 12px; }
+.avs { border: 0; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.avs legend { font-weight: 800; font-size: 14px; margin-bottom: 6px; }
+.avs label { position: relative; }
+.avs input { position: absolute; opacity: 0; }
+.avs span, .avs.pick button { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--glaze-3); background: #fff; font-size: 24px; cursor: pointer; }
+.avs input:checked + span { border-color: var(--ink); background: #fff3d6; box-shadow: 0 0 0 2px var(--ochre); }
+.avs input:focus-visible + span { outline: 3px solid var(--ochre); outline-offset: 2px; }
+.avs.pick { margin-top: 10px; }
+
+/* scheda del giocatore e squadra */
+.card-head { display: flex; gap: 16px; align-items: center; }
+.card-av { flex: none; width: 76px; height: 76px; border-radius: 50%; border: 3px solid var(--ink); background: #fff3d6; font-size: 42px; box-shadow: 0 3px 0 var(--ink); }
+.pts-line { margin: 0; font-size: 17px; }
+.pts-line b { font: 26px var(--display); }
+.card-head .hint { margin: 4px 0 0; }
+.team-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
+.tname { font: 20px var(--display); }
+.members, .board-teams { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+.members li, .board-teams li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: #fff; }
+.members li.me, .board-teams li.me { box-shadow: 0 0 0 2px var(--ochre); }
+.members .av { font-size: 24px; }
+.members .nm { flex: 1; min-width: 0; }
+.cap { color: var(--ochre-dark); font-weight: 800; }
+.pts { margin-left: auto; font: 18px var(--display); text-align: right; }
+.pts small { display: block; font: 600 11px var(--body); color: var(--muted); }
+.board-teams .pos { font: 16px var(--display); min-width: 2ch; }
+.board-teams small { color: var(--muted); }
+.invite { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: var(--glaze-2); }
+.invite code, .lobby-code .link { display: block; margin: 6px 0 10px; padding: 6px 10px; border-radius: 8px; background: #fff; font-size: 13px; overflow-wrap: anywhere; }
+
+/* dove si gioca */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 0 18px; }
+.mode { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--glaze-3); background: #fff; }
+.mode small { color: var(--muted); font-size: 13px; line-height: 1.3; }
+.mode[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 -4px 0 var(--ochre); }
+.mode:hover { border-color: var(--ink); }
+
+/* gioca online */
+.online-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile { display: grid; gap: 12px; align-content: start; padding: 16px; border-radius: 14px; background: #fff; border: 2px solid var(--glaze-3); }
+.tile h3 { margin: 0; }
+.gamelist ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.gamelist li { display: flex; align-items: center; gap: 6px; }
+.gl { flex: 1; min-width: 0; display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 2px solid var(--glaze-3); background: #fff; text-align: left; }
+.gl:hover { border-color: var(--ink); }
+.gamelist li.mine .gl { border-color: var(--ochre); box-shadow: inset 6px 0 0 var(--ochre); }
+.gl-code { font: 16px var(--display); letter-spacing: .08em; }
+.gl-avs { font-size: 20px; letter-spacing: -.1em; }
+.gl-txt { display: grid; min-width: 0; }
+.gl-names { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-txt small { color: var(--muted); }
+.yours { color: var(--good); }
+
+/* sala d'attesa */
+.lobby-code { text-align: center; margin: 6px 0 16px; padding: 16px; border-radius: 14px; background: var(--glaze-2); }
+.lobby-code > span { font-weight: 800; color: var(--muted); font-size: 14px; }
+.big-code { margin: 6px auto 10px; font-size: 40px; letter-spacing: .18em; padding: 6px 18px 6px 26px; background: #fff; }
+.lobby-code .link { max-width: 46ch; margin-inline: auto; }
+.lobby-code .hint { margin: 10px 0 0; }
+.lobby-seats li { padding: 6px 10px 6px 6px; border-radius: 12px; background: #fff; }
+.lobby-seats li.me { box-shadow: 0 0 0 2px var(--ochre); }
+.lobby-seats li.empty { background: transparent; border: 2px dashed var(--glaze-3); color: var(--muted); grid-template-columns: 48px 1fr; }
+.lobby-seats .seat-av { display: grid; place-items: center; border-style: solid; }
+.lobby-seats .nm small { color: var(--muted); }
+.waiting { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 700; }
+.waiting.big { font-size: 17px; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--rug, var(--ochre)); animation: dot 1.2s infinite ease-in-out; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 80%, 100% { transform: scale(.5); opacity: .4; } 40% { transform: scale(1); opacity: 1; } }
+
+/* barra della partita online, sopra il pannello */
+.netbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px 8px 14px; border-radius: 14px; background: rgba(251, 247, 238, .1); color: var(--glaze); }
+.netbar .net-txt { flex: 1; min-width: 10ch; }
+.netbar .net-txt b { font-family: var(--display); font-weight: 400; letter-spacing: .08em; }
+.netbar .btn.ghost { color: var(--glaze); border-color: rgba(251, 247, 238, .45); }
+.net-dot { width: 10px; height: 10px; border-radius: 50%; background: #5fd08a; box-shadow: 0 0 0 3px rgba(95, 208, 138, .25); }
+.net-dot.off { background: #f0a23b; box-shadow: 0 0 0 3px rgba(240, 162, 59, .3); animation: dot 1.2s infinite; }
+.p-name .you { display: inline-block; vertical-align: 2px; font-style: normal; margin-left: 4px; padding: 0 6px; border-radius: 6px; background: var(--ink); color: var(--glaze); font-weight: 800; font-size: 11px; }
+
+/* messaggini */
+#toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 40; display: grid; gap: 8px; width: min(440px, calc(100% - 32px)); pointer-events: none; }
+.toast { padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--glaze); box-shadow: 0 10px 30px rgba(0, 0, 0, .4); animation: modal .25s ease-out; transition: opacity .4s, transform .4s; }
+.toast.out { opacity: 0; transform: translateY(8px); }
+
+.topnav .short { display: none; }
+@media (max-width: 520px) {
+  .topnav .long { display: none; }
+  .topnav .short { display: inline; }
+  .topnav .btn.profile .lbl { display: none; }
+  .topnav .btn.profile { padding-inline: 10px; }
+  .brand { font-size: 22px; }
+}
+@media (max-width: 640px) {
+  .online-grid, .modes, .fld2 { grid-template-columns: 1fr; }
+  .big-code { font-size: 32px; }
+  .topnav .btn { min-height: 38px; padding: 6px 10px; font-size: 14px; }
+}
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .frame { --size: min(100%, 72dvh); border-radius: 16px; }
@@ -388,5 +522,6 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 .35em; border-radius: 
   .keys th { white-space: normal; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .dots i, .net-dot.off { animation: none; opacity: 1; transform: none; }
   *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }
 }

@@ -14,7 +14,8 @@ stesso stack, stesso sistema di account e squadre.
 
 - Repo: https://github.com/giovannilombi/pannazzaro (pubblico dal 2026-11-12)
 - Sito: https://giovannilombi.github.io/pannazzaro/ (GitHub Pages da `main`, si aggiorna a ogni push)
-- Sito statico puro (niente build, niente dipendenze), come Twindoku. Server: Cloudflare Worker `pannazzaro-api` + D1 `pannazzaro` (**non ancora creati**).
+- Sito statico puro (niente build, niente dipendenze), come Twindoku. Server: Cloudflare Worker `pannazzaro-api` (https://pannazzaro-api.giovanni-lombi.workers.dev) + D1 `pannazzaro`, pubblicati il 2026-11-12.
+  Il PEPPER di produzione è lo stesso di `worker/.dev.vars` (copia locale, non nel repo): **non cambiarlo mai**, altrimenti nessuno entra più con il PIN.
 
 ## Vincoli da rispettare sempre
 
@@ -35,10 +36,13 @@ stesso stack, stesso sistema di account e squadre.
 | `js/types.js` | **Interfacce dello stato** (JSDoc): `GameState`, `Board`, `Rug`, `Peppo`, `PlayerState`, `TurnState`, `Toll`, `Action`… |
 | `js/rules.js` | **Motore completo, funzioni pure**: `createGame`, `applyAction(state, by, action)` → nuovo stato (o `RuleError`), `stepFrom`/`walk` (bordi), `zoneAt`/`tollFor`, `placeError`/`legalPlacements`, `finalScores`, `publicView` (per l'online) |
 | `js/board.js` | Componente tabellone `createBoard(el)`: render, `movePeppo` animato, archi (`arcId`), segni di raggiungibilità, tappeto fantasma, frecce, evidenziazioni |
-| `js/app.js` | Partita "passa e gioca": nuova partita, fasi del turno, comandi (tocco, mouse, tastiera), dado, pedaggio, classifica, regole. Salvataggio in `pz:local:game` |
-| `js/account.js` | Profili, chiamate al server, squadre (da Twindoku, chiavi locali `pz:`) |
-| `worker/` | Server: `src/index.js` (account e squadre), `schema.sql`, `wrangler.toml`, `.dev.vars.example` |
+| `js/app.js` | Interfaccia di gioco, sul dispositivo e online: fasi del turno, comandi (tocco, mouse, tastiera), dado, pedaggio, classifica, regole. Online: `act()` manda la mossa al server, `applyRemote()` rivede animate le mosse degli altri. Salvataggi: `pz:local:game`, partita online in corso `pz:online:code` |
+| `js/account.js` | Profili, chiamate al server (account, squadre, partite), chiavi locali `pz:`. `localStorage pz:api` cambia server (es. locale) |
+| `js/profile.js` | Finestre di profilo e squadra (da `twindoku/js/profile.js`, senza distintivi). `need(next)` chiede l'accesso e poi riprende |
+| `js/online.js` | Gioca online: le mie partite, creazione, sala d'attesa con codice e link `#partita-CODICE`, aggiornamenti ogni 2 s (`watch`) |
+| `worker/` | Server: `src/index.js` (account, squadre, partite `/api/game*`, importa `js/rules.js`), `schema.sql`, `wrangler.toml`, `.dev.vars.example` |
 | `tools/test-rules.js` | Prove delle regole (`npm test`) |
+| `tools/test-online.js` | Prova completa delle partite online contro un server (`node tools/test-online.js http://127.0.0.1:8788`). Sul server pubblicato lascia giocatori di prova: cancellarli dopo |
 | `docs/REGOLE.md` | Regole del gioco da implementare |
 | `docs/ROADMAP.md` | Passi successivi e decisioni aperte |
 
@@ -48,6 +52,9 @@ stesso stack, stesso sistema di account e squadre.
 python3 -m http.server 8766          # prova in locale: http://127.0.0.1:8766/
 npm test                             # prove delle regole
 cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.vars con PEPPER)
+#   poi nel browser: localStorage.setItem('pz:api', 'http://127.0.0.1:8788')
+cd worker && npx wrangler deploy             # pubblica il server
+cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # dopo aver cambiato lo schema (solo CREATE IF NOT EXISTS)
 ```
 
 ## Comandi di gioco (non cambiarli senza aggiornare la finestra "Come si gioca" in `js/app.js`)
@@ -60,6 +67,9 @@ cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.v
 - **Tappeto**: tocca una casella illuminata → tappeto fantasma lì (prima posizione: quella che si allontana da Peppo);
   ritocca la stessa casella o Gira (R) per cambiarne il verso; ‹ › o ← → scorrono tutte le posizioni; Stendi il tappeto (Invio); Esc annulla.
   Col mouse il passaggio sopra una casella mostra un'anteprima leggera.
+- **Online**: in alto «Online» (le mie partite, crea, entra con un codice) e il profilo. Quando non tocca a te il pannello
+  dice cosa sta facendo l'altro e le sue mosse si vedono animate; quando tocca a te il titolo della pagina diventa «● Tocca a te».
+  Sopra il pannello: codice della partita, pallino di connessione, «Le mie partite», «Abbandona».
 
 ## Storico decisioni
 
@@ -72,3 +82,8 @@ cd worker && npx wrangler dev --port 8788   # server locale (serve worker/.dev.v
 - **2026-11-12** — Motore completo con prove (28 uscite dai bordi, pedaggi, piazzamento, 900 partite casuali da 2-4 giocatori).
   Interfaccia "passa e gioca" completa. Grafica: chiostro di maioliche la sera (Alfa Slab One + Nunito, cobalto, giallo maiolica).
   Il colore "golfo" è diventato **melanzana** per non confondersi con lo sfondo blu. Se non c'è posto per il tappeto, il tappeto si perde.
+- **2026-11-12** — Online: worker e D1 pubblicati. Partite con sala d'attesa (codice di 5 caratteri e link `#partita-CODICE`), chi crea
+  fa cominciare, primo di turno a sorte, colori nell'ordine di arrivo. Il server applica le mosse con `rules.js` e controlla la
+  versione (mossa su tabellone vecchio → 409). **Polling ogni 2 s** invece di WebSocket. Abbandono = esce come chi non può pagare
+  (`resign` in `rules.js`). Punti di classifica provvisori: N, N−1… secondo il posto (vedi `docs/ROADMAP.md`).
+  Avatar: animali (niente detective); parole del codice segreto a tema napoletano (es. LIMONE-GUFO-73).

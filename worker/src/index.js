@@ -1,7 +1,9 @@
 // Server di Pannazzaro (Cloudflare Worker + database D1).
 // Account (soprannome + PIN + codice segreto) e squadre: stesse regole e stesso codice di Twindoku.
-// Le partite online arriveranno nello step successivo (vedi docs/ROADMAP.md).
-const AVATARS = ['🕵️', '🦊', '🐱', '🦉', '🐶', '🐼', '🦁', '🐸', '🐙', '🦄', '🐧', '🐢', '🐺', '🐯', '🐨', '🦝'];
+// Partite online: il server tiene lo stato completo e applica le mosse con le stesse regole del browser (js/rules.js).
+import { createGame, applyAction, resign, publicView, RuleError, COLOR_ORDER, COLORS_BY_PLAYERS } from '../../js/rules.js';
+
+const AVATARS = ['🦊', '🐙', '🦉', '🐢', '🐱', '🐶', '🦁', '🐸', '🐼', '🦄', '🐧', '🐺', '🐯', '🐨', '🦝', '🐝'];
 const now = () => Math.floor(Date.now() / 1000);
 
 /* ---------------- risposte ---------------- */
@@ -81,12 +83,12 @@ async function hashSecret(env, secret, salt) {
 const same = (a, b) => { if (a.length !== b.length) return false; let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i); return d === 0; };
 async function newSecret(env, secret) { const salt = hex(randBytes(12)); return { salt, hash: await hashSecret(env, secret, salt) }; }
 
-const WORDS = ['LENTE', 'GUFO', 'PIPA', 'IMPRONTA', 'TACCUINO', 'CAPPELLO', 'BAULE', 'CHIAVE', 'LANTERNA', 'MAPPA', 'BUSSOLA', 'ENIGMA', 'INDIZIO', 'SEGRETO',
-  'FARO', 'VOLPE', 'CORVO', 'TRENO', 'CASTELLO', 'NEBBIA', 'TORRE', 'OROLOGIO', 'SCALA', 'SPECCHIO', 'CANDELA', 'VALIGIA', 'BIGLIETTO', 'CODICE', 'FASCICOLO',
-  'GATTO', 'LUPO', 'MUSEO', 'NAVE', 'TENDA', 'LAGO', 'PORTA', 'ARMADIO', 'PIUMA', 'TIMBRO', 'BOTOLA'];
+const WORDS = ['TAPPETO', 'MAIOLICA', 'LIMONE', 'VESUVIO', 'MANDOLINO', 'SFOGLIA', 'PIZZA', 'CORNETTO', 'GOLFO', 'BARCA', 'VELA', 'FARO',
+  'CHIOSTRO', 'FONTANA', 'PALMA', 'ARANCIA', 'CAFFE', 'TAZZINA', 'BABA', 'PASTIERA', 'STOFFA', 'FRANGIA', 'TELAIO', 'GOMITOLO', 'MONETA', 'DADO',
+  'LUNA', 'SOLE', 'STELLA', 'GABBIANO', 'GATTO', 'VOLPE', 'GUFO', 'POLPO', 'PESCE', 'CONCHIGLIA', 'SCOGLIO', 'ONDA', 'CASTELLO', 'CAMPANA'];
 const rnd = k => crypto.getRandomValues(new Uint32Array(1))[0] % k;
-// es. LENTE-GUFO-73: facile da scrivere sul diario, circa 144.000 combinazioni (e i tentativi sono limitati)
-const recoveryCode = () => `${WORDS[rnd(WORDS.length)]}-${WORDS[rnd(WORDS.length)]}-${rnd(90) + 10}`;
+// es. LIMONE-GUFO-73: facile da scrivere sul diario, circa 144.000 combinazioni (e i tentativi sono limitati)
+const recoveryCode = () => { const a = rnd(WORDS.length), b = (a + 1 + rnd(WORDS.length - 1)) % WORDS.length; return `${WORDS[a]}-${WORDS[b]}-${rnd(90) + 10}`; }; // due parole diverse
 const normCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/^-|-$/g, '');
 const INVITE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -175,6 +177,45 @@ async function joinTeam(env, p, t) {
   await leaveTeam(env, p);
   await env.DB.prepare('UPDATE players SET team_id = ? WHERE id = ?').bind(t.id, p.id).run();
   p.team_id = t.id;
+}
+
+/* ---------------- partite online ---------------- */
+const MAX_SEATS = 4, MAX_OPEN = 12;
+const seatOf = p => ({ id: p.id, name: p.name, avatar: p.avatar });
+const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+async function loadGame(env, code) {
+  const g = await env.DB.prepare('SELECT * FROM games WHERE code = ?').bind(cleanCode(code)).first();
+  if (!g || g.status === 'gone') throw new Oops('Questa partita non c\'è più, oppure il codice è sbagliato.', 404);
+  g.seats = JSON.parse(g.seats); g.options = JSON.parse(g.options); g.state = g.state ? JSON.parse(g.state) : null;
+  return g;
+}
+const seated = (g, p) => g.seats.some(s => s.id === p.id);
+// Quello che vede il giocatore p: la sala d'attesa e lo stato pubblico (senza seme del dado né ordine delle pile).
+function gameView(g, p) {
+  return {
+    game: {
+      code: g.code, status: g.status, version: g.version, updated: g.updated, options: g.options,
+      host: g.host_id === p.id, you: g.state ? g.state.players.findIndex(x => x.accountId === p.id) : -1,
+      seats: g.seats.map(s => ({ name: s.name, avatar: s.avatar, me: s.id === p.id, host: s.id === g.host_id })),
+    },
+    state: g.state ? publicView(g.state) : null,
+  };
+}
+// Salva solo se nessun altro ha cambiato la partita nel frattempo (version).
+async function saveGame(env, g) {
+  const t = now();
+  const r = await env.DB.prepare('UPDATE games SET status = ?, seats = ?, state = ?, version = version + 1, updated = ? WHERE id = ? AND version = ?')
+    .bind(g.status, JSON.stringify(g.seats), g.state ? JSON.stringify(g.state) : null, t, g.id, g.version).run();
+  if (!r.meta.changes) throw new Oops('Nel frattempo la partita è andata avanti: riprova.', 409);
+  g.version++; g.updated = t;
+}
+// Punti di classifica a fine partita: in 4 giocatori 4, 3, 2, 1 secondo il posto (in 3: 3, 2, 1; in 2: 2, 1). Chi esce: 0.
+// Contano solo le partite vere (almeno due tappeti a testa sul tabellone), così non si fanno punti abbandonando subito.
+async function award(env, g) {
+  const s = g.state, n = s.players.length;
+  if (s.rugs.length < n * 2) return;
+  const stmts = (s.result || []).map(r => env.DB.prepare('UPDATE players SET points = points + ? WHERE id = ?').bind(n - r.place + 1, s.players[r.player].accountId));
+  if (stmts.length) await env.DB.batch(stmts);
 }
 
 /* ---------------- rotte ---------------- */
@@ -324,6 +365,119 @@ const routes = {
       .sort((a, b) => b.score - a.score || b.members - a.members || a.name.localeCompare(b.name));
     list.forEach((t, i) => (t.pos = i + 1));
     return { teams: list.filter((t, i) => i < 30 || t.mine) };
+  },
+
+  /* ---------- partite online ---------- */
+  // nuova sala d'attesa: chi la crea è il primo seduto
+  'POST /api/game/new': async (env, req, url, body) => {
+    const p = await auth(env, req);
+    const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM games g JOIN game_seats s ON s.game_id = g.id WHERE s.player_id = ? AND g.status IN ('lobby', 'play')").bind(p.id).first();
+    if (open.n >= MAX_OPEN) throw new Oops('Hai già troppe partite aperte: finiscine o abbandonane qualcuna.', 429);
+    const options = { rotateAtEnd: !!body.rotateAtEnd };
+    let g = null;
+    for (let i = 0; i < 6 && !g; i++) {
+      try {
+        g = await env.DB.prepare("INSERT INTO games (code, host_id, status, options, seats, version, created, updated) VALUES (?, ?, 'lobby', ?, ?, 0, ?, ?) RETURNING *")
+          .bind(randFrom(5, INVITE_ABC), p.id, JSON.stringify(options), JSON.stringify([seatOf(p)]), now(), now()).first();
+      } catch (e) { if (!/UNIQUE/i.test(String(e))) throw e; }
+    }
+    if (!g) throw new Oops('Non riesco a creare la partita: riprova.', 500);
+    await env.DB.prepare('INSERT INTO game_seats (game_id, player_id) VALUES (?, ?)').bind(g.id, p.id).run();
+    g.seats = JSON.parse(g.seats); g.options = options; g.state = null;
+    return gameView(g, p);
+  },
+
+  'POST /api/game/join': async (env, req, url, body) => {
+    const p = await auth(env, req), g = await loadGame(env, body.code);
+    if (seated(g, p)) return gameView(g, p);
+    if (g.status !== 'lobby') throw new Oops('Questa partita è già cominciata: chiedi agli amici di crearne una nuova.', 409);
+    if (g.seats.length >= MAX_SEATS) throw new Oops('La partita è al completo: ci sono già 4 giocatori.', 409);
+    g.seats.push(seatOf(p));
+    await saveGame(env, g);
+    await env.DB.prepare('INSERT OR IGNORE INTO game_seats (game_id, player_id) VALUES (?, ?)').bind(g.id, p.id).run();
+    return gameView(g, p);
+  },
+
+  // solo chi l'ha creata: si comincia. Il primo di turno lo sceglie la sorte, poi si va nell'ordine di arrivo.
+  'POST /api/game/start': async (env, req, url, body) => {
+    const p = await auth(env, req), g = await loadGame(env, body.code);
+    if (g.status !== 'lobby') return gameView(g, p);
+    if (g.host_id !== p.id) throw new Oops('Solo chi ha creato la partita può farla cominciare.', 403);
+    if (g.seats.length < 2) throw new Oops('Servono almeno 2 giocatori.');
+    // i colori seguono l'ordine di arrivo (come si vedono in sala d'attesa); poi si ruota l'ordine di gioco
+    const n = g.seats.length, per = COLORS_BY_PLAYERS[n];
+    const seats = g.seats.map((s, i) => ({ accountId: s.id, name: s.name, avatar: s.avatar, colors: COLOR_ORDER.slice(i * per, i * per + per) }));
+    const k = rnd(n), order = [...seats.slice(k), ...seats.slice(0, k)];
+    g.state = createGame({ players: order, mode: 'online', seed: crypto.getRandomValues(new Uint32Array(1))[0], options: g.options });
+    g.state.id = g.code;
+    g.status = 'play';
+    await saveGame(env, g);
+    return gameView(g, p);
+  },
+
+  // stato della partita. Con v = versione che il giocatore ha già, risponde { same: true } se non è cambiato niente
+  // (il browser chiede ogni 2 secondi: così la risposta è piccola).
+  'GET /api/game': async (env, req, url) => {
+    const p = await auth(env, req), code = cleanCode(url.searchParams.get('code')), v = url.searchParams.get('v');
+    if (v != null) {
+      const r = await env.DB.prepare('SELECT g.version FROM games g JOIN game_seats s ON s.game_id = g.id AND s.player_id = ? WHERE g.code = ? AND g.status != \'gone\'').bind(p.id, code).first();
+      if (r && r.version === +v) return { same: true, version: r.version };
+    }
+    const g = await loadGame(env, code);
+    if (!seated(g, p)) {
+      if (g.status === 'lobby') return { ...gameView(g, p), seated: false };
+      throw new Oops('Non sei in questa partita.', 403);
+    }
+    return { ...gameView(g, p), seated: true };
+  },
+
+  // una mossa (le stesse azioni del gioco sul dispositivo, più { type: 'resign' } per abbandonare)
+  'POST /api/game/act': async (env, req, url, body) => {
+    const p = await auth(env, req), g = await loadGame(env, body.code);
+    if (g.status !== 'play') throw new Oops(g.status === 'over' ? 'La partita è finita.' : 'La partita non è ancora cominciata.', 409);
+    if (body.v != null && +body.v !== g.version) throw new Oops('Nel frattempo la partita è andata avanti: aggiorno il tabellone.', 409, { stale: true });
+    const seat = g.state.players.findIndex(x => x.accountId === p.id);
+    if (seat < 0) throw new Oops('Non sei in questa partita.', 403);
+    const action = body.action && typeof body.action === 'object' ? body.action : {};
+    try { g.state = action.type === 'resign' ? resign(g.state, seat) : applyAction(g.state, seat, action); }
+    catch (e) { if (e instanceof RuleError) throw new Oops(e.message, 409); throw e; }
+    if (g.state.turn.phase === 'over') g.status = 'over';
+    await saveGame(env, g);
+    if (g.status === 'over') await award(env, g);
+    return gameView(g, p);
+  },
+
+  // esce dalla sala d'attesa (se è chi l'ha creata, la sala si chiude) oppure toglie una partita finita dalla lista
+  'POST /api/game/leave': async (env, req, url, body) => {
+    const p = await auth(env, req), g = await loadGame(env, body.code);
+    if (!seated(g, p)) return { ok: true };
+    if (g.status === 'play') throw new Oops('La partita è in corso: per uscire usa «Abbandona».', 409);
+    if (g.status === 'lobby') {
+      if (g.host_id === p.id) g.status = 'gone';
+      else g.seats = g.seats.filter(s => s.id !== p.id);
+      await saveGame(env, g);
+    }
+    await env.DB.prepare('DELETE FROM game_seats WHERE game_id = ? AND player_id = ?').bind(g.id, p.id).run();
+    return { ok: true };
+  },
+
+  // le mie partite: in attesa, in corso e finite da poco
+  'GET /api/games': async (env, req) => {
+    const p = await auth(env, req);
+    const rows = (await env.DB.prepare(`SELECT g.* FROM games g JOIN game_seats s ON s.game_id = g.id WHERE s.player_id = ?
+      AND (g.status IN ('lobby', 'play') OR (g.status = 'over' AND g.updated > ?)) ORDER BY g.updated DESC LIMIT 20`).bind(p.id, now() - 14 * 86400).all()).results;
+    return {
+      games: rows.map(g => {
+        const st = g.state ? JSON.parse(g.state) : null, seats = JSON.parse(g.seats);
+        const cur = st && g.status === 'play' ? st.players[st.turn.current] : null;
+        const win = st && st.result ? st.result.filter(r => r.place === 1).map(r => st.players[r.player].name) : [];
+        return {
+          code: g.code, status: g.status, updated: g.updated, host: g.host_id === p.id,
+          seats: seats.map(s => ({ name: s.name, avatar: s.avatar, me: s.id === p.id })),
+          turn: cur ? { name: cur.name, me: cur.accountId === p.id } : null, winners: win,
+        };
+      }),
+    };
   },
 };
 

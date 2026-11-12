@@ -44,3 +44,23 @@ CREATE TABLE IF NOT EXISTS attempts (
   until   INTEGER NOT NULL,
   updated INTEGER NOT NULL
 );
+
+-- Partite online. Lo stato completo (con il seme del dado e l'ordine delle pile) resta qui: ai giocatori va solo publicView().
+CREATE TABLE IF NOT EXISTS games (
+  id      INTEGER PRIMARY KEY,
+  code    TEXT NOT NULL UNIQUE,         -- 5 caratteri, per gli inviti (#partita-CODICE)
+  host_id INTEGER NOT NULL,             -- chi l'ha creata: fa cominciare la partita
+  status  TEXT NOT NULL,                -- lobby | play | over | gone (sala d'attesa chiusa)
+  options TEXT NOT NULL,                -- JSON RuleOptions
+  seats   TEXT NOT NULL,                -- JSON [{ id, name, avatar }] in ordine di arrivo
+  state   TEXT,                         -- JSON GameState, null finché si è in sala d'attesa
+  version INTEGER NOT NULL DEFAULT 0,   -- cresce a ogni mossa: serve per non applicare mosse su un tabellone vecchio
+  created INTEGER NOT NULL,
+  updated INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS game_seats (
+  game_id   INTEGER NOT NULL,
+  player_id INTEGER NOT NULL,
+  PRIMARY KEY (game_id, player_id)
+);
+CREATE INDEX IF NOT EXISTS game_seats_player ON game_seats(player_id);

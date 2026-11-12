@@ -25,8 +25,10 @@
       <span>Pannazzaro</span>
     </a>
     <nav class="topnav">
-      <button type="button" class="btn ghost" id="helpBtn">Come si gioca</button>
-      <button type="button" class="btn ghost" id="newBtn">Nuova partita</button>
+      <button type="button" class="btn ghost" id="helpBtn"><span class="long">Come si gioca</span><span class="short">Regole</span></button>
+      <button type="button" class="btn ghost" id="newBtn"><span class="long">Nuova partita</span><span class="short">Nuova</span></button>
+      <button type="button" class="btn ghost" id="onlineBtn">Online</button>
+      <button type="button" class="btn ghost profile" id="profileBtn"><span class="av" aria-hidden="true">👤</span><span class="lbl">Entra</span></button>
     </nav>
   </header>
 
@@ -36,6 +38,7 @@
     </section>
 
     <aside class="panel" aria-label="Turno e giocatori">
+      <div class="netbar" id="netbar" hidden></div>
       <section class="turn" id="turn" aria-live="polite">
         <header class="turn-head">
           <span class="turn-av" id="turnAv"></span>

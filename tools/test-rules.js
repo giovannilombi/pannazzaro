@@ -1,5 +1,5 @@
 // Prove rapide delle regole pure:  npm test  (oppure node tools/test-rules.js)
-import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS, stepFrom, walk, zoneAt, tollFor, placeError, legalPlacements, applyAction, finalScores, publicView, RuleError } from '../js/rules.js';
+import { createGame, turnDir, rollDie, DIE, SIZE, START_COINS, stepFrom, walk, zoneAt, tollFor, placeError, legalPlacements, applyAction, finalScores, publicView, resign, RuleError } from '../js/rules.js';
 
 let fails = 0;
 const ok = (cond, msg) => { console.log(`${cond ? '✓' : '✗'} ${msg}`); if (!cond) fails++; };
@@ -124,6 +124,23 @@ const fin = playOut(42, 4);
 ok(fin.result.every((r, i, a) => i === 0 || a[i - 1].total > r.total || (a[i - 1].total === r.total && a[i - 1].coins >= r.coins)), 'classifica ordinata per punti e monete');
 const pv = publicView(fin);
 ok(pv.rng === 0 && pv.players.every(p => p.pile.slice(1).every(c => c === null)), 'vista pubblica senza seme né ordine delle pile');
+
+// abbandono (online)
+{
+  let st = createGame({ players: [{}, {}, {}], seed: 7 });
+  st = resign(st, 1);
+  ok(st.players[1].out && st.turn.current === 0 && st.turn.phase === 'orient', 'chi abbandona fuori turno esce e il turno resta');
+  st = resign(st, 0);
+  ok(st.turn.phase === 'over' && st.result.length === 1 && st.result[0].player === 2, 'se resta uno solo la partita finisce');
+  let s2 = createGame({ players: [{}, {}, {}], seed: 9 });
+  s2 = resign(s2, 0);
+  ok(s2.turn.current === 1 && s2.turn.phase === 'orient', 'chi abbandona nel suo turno passa la mano');
+  let t3 = false; try { resign(s2, 0); } catch (e) { t3 = e instanceof RuleError; }
+  ok(t3, 'non si abbandona due volte');
+  let s4 = playOut(11, 4);
+  let t4 = false; try { resign(s4, 0); } catch (e) { t4 = true; }
+  ok(t4, 'a partita finita non si abbandona');
+}
 
 if (fails) { console.log(`\n${fails} prove fallite`); process.exit(1); }
 console.log('\nTutto a posto.');

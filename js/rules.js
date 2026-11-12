@@ -319,6 +319,23 @@ export function applyAction(state, by, action) {
   throw new RuleError('Mossa sconosciuta.');
 }
 
+/** Un giocatore abbandona (solo online: si può fare anche fuori turno). Esce come chi non può pagare:
+ * tappeti in mano scartati, quelli sul tabellone diventano neutri.
+ * @param {GameState} state @param {import('./types.js').PlayerIndex} by @returns {GameState} */
+export function resign(state, by) {
+  if (state.turn.phase === 'over') throw new RuleError('La partita è finita.');
+  const s = clone(state), me = s.players[by], t = s.turn;
+  if (!me) throw new RuleError('Non sei in questa partita.');
+  if (me.out) throw new RuleError('Sei già fuori dal gioco.');
+  me.out = true; me.pile = [];
+  s.log.push({ by, round: t.round, action: { type: 'resign' } });
+  if (t.current === by) { endTurn(s); return s; }
+  if (active(s).length <= 1) { t.phase = 'over'; s.result = finalScores(s); return s; }
+  // chi sta per pagare proprio a chi se ne va non paga più
+  if (t.phase === 'pay' && t.toll && t.toll.to === by) { t.toll = null; t.phase = 'place'; skipIfStuck(s); }
+  return s;
+}
+
 /** Caso rarissimo: nessuna posizione valida per il tappeto. Il tappeto si scarta e il turno va avanti. */
 function skipIfStuck(s) {
   if (legalPlacements(s).length) return;
