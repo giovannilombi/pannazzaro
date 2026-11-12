@@ -152,7 +152,7 @@ export function initOnline(ctx) {
           const s = g.seats[i];
           if (!s) return `<li class="empty"><span class="seat-av">?</span><span>Posto libero</span></li>`;
           return `<li class="${s.me ? 'me' : ''}"><span class="seat-av">${s.avatar}</span><span class="nm"><b>${esc(s.name)}</b>${s.me ? ' <small>(tu)</small>' : ''}${s.host ? ' <small class="cap">ha creato la partita</small>' : ''}</span>
-            <span class="seat-rugs">${colorsFor(i).map(c => `<span class="mini-rug rug-${c}" style="--rug:${COLORS[c].hex};--rug-dark:${COLORS[c].dark};--rug-light:${COLORS[c].light}" title="${COLORS[c].name}"><i class="weave"></i></span>`).join('')}</span></li>`;
+            <span class="seat-rugs">${colorsFor(i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
         }).join('')}
       </ol>
       <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>

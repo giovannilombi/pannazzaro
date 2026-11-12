@@ -40,7 +40,21 @@ const ui = {
   anchor: /** @type {import('./types.js').Cell | null} */ (null), // casella toccata per ultima (per "Gira")
   face: 0,
 };
-const B = createBoard($('#board'));
+/* ---------------- grafica ---------------- */
+// Sul telefono (schermo stretto) c'è sempre la "bottega" (C); su tablet e computer si sceglie fra chiostro (A) e vicolo di sera (B).
+const SKIN_KEY = 'pz:skin', phone = matchMedia('(max-width: 700px)');
+const wideSkin = () => (store.get(SKIN_KEY, 'a') === 'b' ? 'b' : 'a');
+const skinNow = () => (phone.matches ? 'c' : wideSkin());
+document.documentElement.dataset.skin = skinNow();
+const B = createBoard($('#board'), skinNow());
+function applySkin() {
+  const k = skinNow();
+  document.documentElement.dataset.skin = k;
+  B.setSkin(k);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', { a: '#1b3566', b: '#14161b', c: '#f1e7d3' }[k]);
+  if (G) { B.render(G); refresh(); }
+}
+phone.addEventListener('change', applySkin);
 
 /* =====================================================================
    Avvio e salvataggi
@@ -218,6 +232,7 @@ function renderPlayers() {
       <span class="p-stat coins" title="Monete"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4.5"/></svg><b data-coins="${i}">${p.coins}</b><span class="sr"> monete</span></span>
       <span class="p-stat" title="Tappeti in mano"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="5" width="14" height="10" rx="1.5"/><path d="M3 8h14M3 12h14"/></svg><b>${p.pile.length}</b><span class="sr"> tappeti in mano</span></span>
       <span class="p-stat" title="Caselle visibili sul tabellone"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6"/><rect x="11" y="3" width="6" height="6"/><rect x="3" y="11" width="6" height="6"/></svg><b>${visible[i]}</b><span class="sr"> caselle visibili</span></span>
+      <span class="p-total" title="Punti adesso: monete più caselle visibili"><b>${p.out ? '–' : p.coins + visible[i]}</b><small>${p.out ? 'fuori' : `${p.coins} + ${visible[i]}`}</small><span class="sr"> punti</span></span>
     </li>`;
   }).join('');
 }
@@ -425,7 +440,7 @@ async function pay() {
   flushRemote();
 }
 function bump(i, delta) {
-  const el = $(`#players [data-i="${i}"] .coins`);
+  const el = $(`#players [data-i="${i}"] .p-total`);
   if (!el || !delta) return;
   const f = document.createElement('span');
   f.className = 'delta ' + (delta > 0 ? 'plus' : 'minus');
@@ -447,7 +462,7 @@ function placeUI() {
   const free = !G.turn.toll ? (() => { const c = G.board[G.peppo.pos.y][G.peppo.pos.x]; return c && c.owner === G.turn.current ? 'Sei sul tuo tappeto: niente pedaggio.' : c ? 'Tappeto neutro: niente pedaggio.' : 'Casella libera: niente pedaggio.'; })() : '';
   $('#act').innerHTML = `
     <div class="place-head">${roll}
-      <div class="next-rug" style="--rug:${col.hex};--rug-dark:${col.dark};--rug-light:${col.light}"><span class="mini-rug rug-${color}"><i class="weave"></i></span>
+      <div class="next-rug" style="--rug:${col.hex};--rug-dark:${col.dark};--rug-light:${col.light}"><span class="mini-rug"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${color}"/></svg></span>
       <span>Tappeto <b>${col.name}</b><small>${plural(me.pile.length, 'tappeto', 'tappeti')} in mano, questo compreso</small></span></div>
     </div>
     <p class="lead">Stendi un tappeto che tocchi la casella di Peppo.</p>
@@ -652,7 +667,7 @@ function setupModal(firstTime = false) {
             const p = st.players[i] || { name: DEFAULT_NAMES[i], avatar: AVATARS[i] };
             return `<li><button type="button" class="seat-av" data-av="${i}" aria-label="Cambia l'animale di ${esc(p.name)}">${p.avatar}</button>
               <input name="name${i}" value="${esc(p.name)}" maxlength="14" required aria-label="Nome del giocatore ${i + 1}">
-              <span class="seat-rugs">${colorsFor(st.n, i).map(c => `<span class="mini-rug rug-${c}" style="--rug:${COLORS[c].hex};--rug-dark:${COLORS[c].dark};--rug-light:${COLORS[c].light}" title="${COLORS[c].name}"><i class="weave"></i></span>`).join('')}</span></li>`;
+              <span class="seat-rugs">${colorsFor(st.n, i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
           }).join('')}
         </ol>
         <p class="hint">${st.n === 2 ? 'In due ognuno ha due colori: 12 tappeti per colore, pescati a caso.' : `Ognuno ha 30 monete e ${st.n === 3 ? 15 : 12} tappeti.`} Chi comincia lo decide la sorte.</p>
@@ -774,6 +789,21 @@ function showEnd() {
 
 $('#helpBtn').addEventListener('click', () => helpModal());
 $('#onlineBtn').addEventListener('click', () => ON.home());
+$('#skinBtn').addEventListener('click', () => {
+  const cur = wideSkin();
+  openModal(`<h2 id="modalTitle">Aspetto del gioco</h2>
+    <p class="sub">Scegli come vuoi vedere tabellone, tappeti e Peppo. Sul telefono la grafica è sempre quella «di carta», più leggibile in piccolo.</p>
+    <div class="modes" role="group" aria-label="Aspetto">
+      <button type="button" class="mode" data-skin-pick="a" aria-pressed="${cur === 'a'}"><b>Chiostro</b><small>Maioliche chiare, cornice blu e gialla, tappeti ricamati.</small></button>
+      <button type="button" class="mode" data-skin-pick="b" aria-pressed="${cur === 'b'}"><b>Vicolo di sera</b><small>Pietra scura, tappeti accesi, Peppo con la lanterna.</small></button>
+    </div>
+    <div class="row end"><button type="button" class="btn ghost" data-close data-focus>Chiudi</button></div>`);
+  document.querySelectorAll('[data-skin-pick]').forEach(b => b.addEventListener('click', () => {
+    store.set(SKIN_KEY, /** @type {HTMLElement} */ (b).dataset.skinPick);
+    document.querySelectorAll('[data-skin-pick]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    applySkin();
+  }));
+});
 $('#newBtn').addEventListener('click', () => {
   if (G && !NET && G.turn.phase !== 'over' && G.log.length > 2) {
     openModal(`<h2 id="modalTitle">Lasciare questa partita?</h2><p>La partita in corso si perde.</p>

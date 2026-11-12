@@ -32,10 +32,11 @@ stesso stack, stesso sistema di account e squadre.
 
 | Percorso | Cosa contiene |
 | --- | --- |
-| `index.html`, `css/style.css` | Pagina e grafica: chiostro di maioliche la sera (fondo cobalto, piastrelle smaltate, tappeti con frange). Token in `:root`. ≤900px: tabellone sopra, pannello sotto |
+| `index.html`, `css/style.css` | Pagina e stili. Token in `:root`; `html[data-skin="a|b|c"]` cambia colori, caratteri e (C) disposizione. ≤900px: tabellone sopra, pannello sotto; ≤700px grafica C con i cartellini dei punti in alto |
 | `js/types.js` | **Interfacce dello stato** (JSDoc): `GameState`, `Board`, `Rug`, `Peppo`, `PlayerState`, `TurnState`, `Toll`, `Action`… |
 | `js/rules.js` | **Motore completo, funzioni pure**: `createGame`, `applyAction(state, by, action)` → nuovo stato (o `RuleError`), `stepFrom`/`walk` (bordi), `zoneAt`/`tollFor`, `placeError`/`legalPlacements`, `finalScores`, `publicView` (per l'online) |
-| `js/board.js` | Componente tabellone `createBoard(el)`: render, `movePeppo` animato, archi (`arcId`), segni di raggiungibilità, tappeto fantasma, frecce, evidenziazioni |
+| `js/skins.js` | **Le tre grafiche** (disegni originali in SVG): cornice con pavimento e archi, i quattro tappeti, Peppo con il fez. A «chiostro», B «vicolo di sera», C «bottega» |
+| `js/board.js` | Componente tabellone `createBoard(el, skin)`: monta la grafica (`setSkin`), render, `movePeppo` animato, archi (`arcId`), segni di raggiungibilità, tappeto fantasma, frecce, evidenziazioni |
 | `js/app.js` | Interfaccia di gioco, sul dispositivo e online: fasi del turno, comandi (tocco, mouse, tastiera), dado, pedaggio, classifica, regole. Online: `act()` manda la mossa al server, `applyRemote()` rivede animate le mosse degli altri. Salvataggi: `pz:local:game`, partita online in corso `pz:online:code` |
 | `js/account.js` | Profili, chiamate al server (account, squadre, partite), chiavi locali `pz:`. `localStorage pz:api` cambia server (es. locale) |
 | `js/profile.js` | Finestre di profilo e squadra (da `twindoku/js/profile.js`, senza distintivi). `need(next)` chiede l'accesso e poi riprende |
@@ -96,3 +97,9 @@ cd worker && npx wrangler d1 execute pannazzaro --remote --file=schema.sql   # d
   Nessun timer sul server: lo controlla chi guarda la partita (`tick()` nel worker, colonna `games.deadline` per il controllo veloce).
   Orologio in `state.clock` { secs, deadline, strikes }.
 - **2026-11-12** — Account **separati** da Twindoku, per scelta di Giovanni (per ora). Non unirli senza chiederlo.
+- **2026-11-12** — **Tre grafiche**, scelte da Giovanni sui bozzetti (https://claude.ai/artifact/FSaDuvmR8XFbaSnDY62T4g):
+  sul telefono (≤700px) sempre la C «bottega di carta»; su tablet e computer si sceglie con «Aspetto» fra A «chiostro» e B «vicolo di sera»
+  (`localStorage pz:skin`). Peppo ha il fez; nella A cambia posa con la direzione (fronte, spalle, fianco), nella B è visto dall'alto
+  e ruota con la lanterna, nella C è un adesivo con un triangolo che indica la direzione. Pavimento spento e tappeti con contorno
+  netto per non confonderli; ogni colore ha un disegno suo. Ogni casella mostra metà del disegno del tappeto (`rugHalf` in `board.js`).
+  Accanto a ogni giocatore c'è il totale dal vivo (monete + caselle in vista).
