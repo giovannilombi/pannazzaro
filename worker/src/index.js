@@ -413,6 +413,7 @@ const routes = {
     const p = await auth(env, req), g = await loadGame(env, body.code);
     if (seated(g, p)) return gameView(g, p);
     if (g.status !== 'lobby') throw new Oops('Questa partita è già cominciata: chiedi agli amici di crearne una nuova.', 409);
+    if (g.options.oneColor && g.seats.length >= 2) throw new Oops('È una partita veloce in due ed è già al completo.', 409);
     if (g.seats.length >= MAX_SEATS) throw new Oops('La partita è al completo: ci sono già 4 giocatori.', 409);
     g.seats.push(seatOf(p));
     await saveGame(env, g);

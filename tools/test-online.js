@@ -25,7 +25,7 @@ for (const [i, name] of names.entries()) {
   P.push({ name, token: r.token, id: r.player.id });
 }
 
-const g = await call('POST', '/api/game/new', { rotateAtEnd: false, oneColor: true }, P[0].token);
+const g = await call('POST', '/api/game/new', { rotateAtEnd: false }, P[0].token);
 ok(g.game && g.game.status === 'lobby' && g.game.host && g.game.code.length === 5, 'sala d\'attesa creata ' + g.game.code);
 const code = g.game.code;
 const early = await call('POST', '/api/game/start', { code }, P[0].token);
@@ -35,7 +35,7 @@ const notHost = await call('POST', '/api/game/start', { code }, P[1].token);
 ok(notHost.status === 403, 'solo chi crea fa cominciare');
 const st = await call('POST', '/api/game/start', { code }, P[0].token);
 ok(st.game.status === 'play' && st.state && st.state.rng === 0, 'si comincia, senza seme visibile');
-ok(st.state.players.every(p => p.pile.length === 15 && p.colors.length === 1), 'in tre la partita veloce si ignora: 15 tappeti, un colore (regola da 3)');
+ok(st.state.players.every(p => p.pile.length === 15 && p.colors.length === 1), 'in tre: 15 tappeti, un colore');
 ok(st.state.clock && st.state.clock.secs === 86400 && st.state.clock.deadline > st.game.now, 'senza scelta: un giorno per turno');
 const late = await call('POST', '/api/game/join', { code }, (await call('POST', '/api/signup', { name: 'pDario' + tag, pin: '2580', avatar: '🐢' })).token);
 ok(late.status === 409, 'a partita cominciata non si entra');
@@ -77,6 +77,8 @@ ok(left.ok && !list2.games.some(x => x.code === code), 'tolta dalla lista');
 // abbandono e chiusura della sala
 const g2 = await call('POST', '/api/game/new', { oneColor: true }, P[0].token);
 await call('POST', '/api/game/join', { code: g2.game.code }, P[1].token);
+const third = await call('POST', '/api/game/join', { code: g2.game.code }, P[2].token);
+ok(third.status === 409, 'la partita veloce è solo in due: il terzo non entra');
 const s2 = await call('POST', '/api/game/start', { code: g2.game.code }, P[0].token);
 ok(s2.state.players.every(p => p.colors.length === 1 && p.pile.length === 15) && s2.state.options.oneColor, 'in due, partita veloce: un colore e 15 tappeti a testa');
 const res = await call('POST', '/api/game/act', { code: g2.game.code, action: { type: 'resign' } }, P[1].token);

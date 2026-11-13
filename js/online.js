@@ -68,7 +68,10 @@ export function initOnline(ctx) {
             ${TIMES.map(([v, l]) => `<label><input type="radio" name="onSecs" value="${v}"${v === lastSecs() ? ' checked' : ''}><span>${l}</span></label>`).join('')}
           </fieldset>
           <p class="hint">Allo scadere Peppo gioca da solo il turno di chi non ha mosso; chi salta tre turni di fila esce dal gioco.</p>
-          <label class="check"><input type="checkbox" id="onOne"> <span><b>Se siete in due, partita veloce:</b> un colore a testa e ${ONE_COLOR_RUGS} tappeti.</span></label>
+          <fieldset class="secs two"><legend>Tipo di partita</legend>
+            <label><input type="radio" name="onMode" value="0" checked><span>Classica: da 2 a 4 giocatori (in due, due colori a testa)</span></label>
+            <label><input type="radio" name="onMode" value="1"><span>Veloce in due: un colore a testa, ${ONE_COLOR_RUGS} tappeti</span></label>
+          </fieldset>
           <label class="check"><input type="checkbox" id="onVar"> <span><b>Variante:</b> Peppo si gira a fine turno.</span></label>
           <button type="button" class="btn primary" data-on="new">Crea la partita</button>
         </section>
@@ -134,7 +137,7 @@ export function initOnline(ctx) {
   }
   function drawLobby(r) {
     const g = r.game, n = g.seats.length;
-    const colorsFor = i => seatColors(n, i, g.options);
+    const fast = !!g.options.oneColor, colorsFor = i => seatColors(fast ? 2 : n, i, g.options);
     const host = g.seats.find(s => s.host);
     openModal(`<div class="lobby">
       <h2 id="modalTitle">Sala d'attesa</h2>
@@ -149,14 +152,14 @@ export function initOnline(ctx) {
         <p class="hint">Manda il link agli amici, oppure dettagli il codice: lo scrivono in «Gioca online».</p>
       </div>
       <ol class="seats lobby-seats">
-        ${Array.from({ length: 4 }, (_, i) => {
+        ${Array.from({ length: fast ? 2 : 4 }, (_, i) => {
           const s = g.seats[i];
           if (!s) return `<li class="empty"><span class="seat-av">?</span><span>Posto libero</span></li>`;
           return `<li class="${s.me ? 'me' : ''}"><span class="seat-av">${s.avatar}</span><span class="nm"><b>${esc(s.name)}</b>${s.me ? ' <small>(tu)</small>' : ''}${s.host ? ' <small class="cap">ha creato la partita</small>' : ''}</span>
             <span class="seat-rugs">${colorsFor(i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
         }).join('')}
       </ol>
-      <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${g.options.oneColor ? `<b>Se siete in due:</b> partita veloce, un colore a testa e ${ONE_COLOR_RUGS} tappeti. ` : ''}${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
+      <p class="hint"><b>⏱ ${timeName(g.options.turnSecs || 86400)[0].toUpperCase() + timeName(g.options.turnSecs || 86400).slice(1)}.</b> ${fast ? `<b>Partita veloce in due:</b> un colore a testa e ${ONE_COLOR_RUGS} tappeti. ` : ''}${g.options.rotateAtEnd ? '<b>Variante:</b> Peppo si gira a fine turno. ' : ''}Chi comincia lo sceglie la sorte. La pagina si aggiorna da sola quando arriva qualcuno.</p>
       <div class="row end">
         <button type="button" class="btn ghost" data-on="leave" data-code="${g.code}">${g.host ? 'Chiudi la sala' : 'Esci dalla sala'}</button>
         <button type="button" class="btn ghost" data-on="home">Le mie partite</button>
@@ -177,7 +180,7 @@ export function initOnline(ctx) {
     if (k === 'new') return busy(async () => {
       const secs = +(/** @type {HTMLInputElement} */ (modal.querySelector('input[name="onSecs"]:checked'))?.value || 86400);
       try { localStorage.setItem(LAST_SECS, String(secs)); } catch (x) { /* niente */ }
-      lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked, oneColor: /** @type {HTMLInputElement} */ ($('#onOne')).checked, turnSecs: secs }));
+      lobby(await acc.gameNew({ rotateAtEnd: /** @type {HTMLInputElement} */ ($('#onVar')).checked, oneColor: (/** @type {HTMLInputElement} */ (modal.querySelector('input[name="onMode"]:checked'))?.value) === '1', turnSecs: secs }));
     });
     if (k === 'start') return busy(async () => { const r = await acc.gameStart(code); stop(); ctx.enter(r); });
     if (k === 'leave') {

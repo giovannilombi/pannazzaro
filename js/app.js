@@ -671,7 +671,7 @@ function setupModal(firstTime = false) {
               <span class="seat-rugs">${colorsFor(st.n, i).map(c => `<span class="mini-rug" title="${COLORS[c].name}"><svg viewBox="0 0 160 80" aria-hidden="true"><use href="#pz-rug-${c}"/></svg></span>`).join('')}</span></li>`;
           }).join('')}
         </ol>
-        ${st.n === 2 ? `<fieldset class="secs two"><legend>In due</legend>
+        ${st.n === 2 ? `<fieldset class="secs two"><legend>Tipo di partita</legend>
           <label><input type="radio" name="oneColor" value="0" ${st.oneColor ? '' : 'checked'}><span>Partita classica: due colori a testa, 24 tappeti</span></label>
           <label><input type="radio" name="oneColor" value="1" ${st.oneColor ? 'checked' : ''}><span>Partita veloce: un colore a testa, 15 tappeti</span></label>
         </fieldset>` : ''}

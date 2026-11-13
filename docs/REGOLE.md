@@ -62,7 +62,7 @@ Da implementare come tabella da 28 voci (7 corsie × 4 lati) con una prova per o
   e continua a giocare. I suoi tappeti in mano si scartano. Quelli sul tabellone restano ma diventano **neutri**: non fanno più
   pagare, però occupano spazio e contano per le regole di copertura.
 - In 2 giocatori i due colori dello stesso giocatore formano zone **separate**.
-- **Partita veloce in due** (opzione `oneColor`, non ufficiale, aggiunta il 2026-11-13): un colore a testa (pomodoro e limone) e
+- **Partita veloce in due** (opzione `oneColor`, non ufficiale, aggiunta il 2026-11-13): un colore a testa (rosso e giallo) e
   **15 tappeti** ciascuno. Scelti 15 con 600 partite simulate per caso: con 12 i pedaggi quasi spariscono (0,8 a partita),
   con 24 un colore solo fa zone enormi (1 pedaggio su 5 vale 8 monete o più, scarto finale doppio). Con 15: ~30 turni,
   pedaggio medio 3,6, scarto finale come la partita classica.

@@ -18,7 +18,7 @@ export const DEFAULT_OPTIONS = Object.freeze({ coverOwn: false, rotateAtEnd: fal
 export const ONE_COLOR_RUGS = 15;
 /** Quanti colori ha ciascuno: in due di solito 2, con la partita veloce 1. */
 export const colorsPer = (n, options = {}) => (n === 2 && options.oneColor ? 1 : COLORS_BY_PLAYERS[n]);
-/** Colori del giocatore i (in ordine di arrivo). In due con un colore a testa: pomodoro e limone, i più diversi. */
+/** Colori del giocatore i (in ordine di arrivo). In due con un colore a testa: rosso e giallo, i più diversi. */
 export const seatColors = (n, i, options = {}) => (n === 2 ? (options.oneColor ? [COLOR_ORDER[i * 2]] : COLOR_ORDER.slice(i * 2, i * 2 + 2)) : [COLOR_ORDER[i]]);
 /** Tappeti a testa. */
 export const rugsEach = (n, options = {}) => (n === 2 && options.oneColor ? ONE_COLOR_RUGS : RUGS_BY_PLAYERS[n]);
@@ -26,10 +26,10 @@ export const DIE = Object.freeze([1, 2, 2, 3, 3, 4]);
 
 /** @type {Record<PlayerColor, { name: string, hex: string }>} */
 export const COLORS = {
-  pomodoro: { name: 'Pomodoro', hex: '#c8322b', dark: '#7d1712', light: '#f2a28f' },
-  melanzana: { name: 'Melanzana', hex: '#6d3f9c', dark: '#3b1c5c', light: '#c9a8ea' },
-  limone: { name: 'Limone', hex: '#e8b923', dark: '#8a6406', light: '#fbe7a1' },
-  basilico: { name: 'Basilico', hex: '#2f8a4a', dark: '#13502a', light: '#a5dcb2' },
+  pomodoro: { name: 'Rosso', hex: '#c8322b', dark: '#7d1712', light: '#f2a28f' },
+  melanzana: { name: 'Viola', hex: '#6d3f9c', dark: '#3b1c5c', light: '#c9a8ea' },
+  limone: { name: 'Giallo', hex: '#e8b923', dark: '#8a6406', light: '#fbe7a1' },
+  basilico: { name: 'Verde', hex: '#2f8a4a', dark: '#13502a', light: '#a5dcb2' },
 };
 /** @type {PlayerColor[]} */
 export const COLOR_ORDER = ['pomodoro', 'melanzana', 'limone', 'basilico'];
